@@ -25,7 +25,12 @@ def incident_report_page(patrol_vehicle_options=None):
         col1, col2 = st.columns(2)
         with col1:
             incident_date = st.date_input("Incident Date")
-            incident_time = st.time_input("Incident Time")
+            col_time1, col_time2 = st.columns(2)
+            with col_time1:
+                incident_hour = st.selectbox("Hour", list(range(24)), key="incident_hour")
+            with col_time2:
+                incident_minute = st.selectbox("Minute", list(range(60)), key="incident_minute")
+            incident_time = f"{incident_hour:02d}:{incident_minute:02d}"
             caller = st.text_input("Caller Name")
             phone_number = st.text_input("Caller Phone Number")
             location = st.text_input("Location")

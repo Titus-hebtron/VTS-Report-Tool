@@ -29,42 +29,63 @@ if "login_state" not in st.session_state:
 
 # ---------------- LOGIN PAGE ----------------
 if not st.session_state["login_state"]:
-    st.title("🔑 Login")
+    # Layout with columns for better appearance
+    col1, col2 = st.columns([2, 1])
 
-    contractor_options = ["Wizpro", "Paschal", "RE Office"]
-    contractor = st.selectbox("Select Contractor", contractor_options)
+    with col1:
+        st.markdown("""
+        <div style='text-align: center; padding: 50px;'>
+            <h1 style='color: #004080;'>Welcome to VTS Report Tool 🚓📊</h1>
+            <p style='font-size: 18px; color: #666;'>Your smart platform for vehicle tracking and reporting. With VTS you can:</p>
+            <ul style='text-align: left; font-size: 16px; color: #666; list-style-type: none; padding-left: 20px;'>
+                <li>📍 Track vehicles in real-time with live updates.</li>
+                <li>📑 Generate, view, and manage patrol reports easily.</li>
+                <li>🔒 Keep data secure with role-based login.</li>
+                <li>📊 Boost efficiency through automated reports and analytics.</li>
+                <li>🌐 Access the system anywhere, anytime.</li>
+            </ul>
+            <p style='font-size: 16px; color: #666;'>Login now to manage your fleet operations with efficiency, accuracy, and security.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    with col2:
+        st.markdown("### 🔑 Login")
+        contractor_options = ["Wizpro", "Paschal", "RE Office", "Avators"]
+        contractor = st.selectbox("Select Contractor", contractor_options)
 
-    if st.button("Login"):
-        from db_utils import get_sqlalchemy_engine
-        import bcrypt
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
 
-        engine = get_sqlalchemy_engine()
-        conn = engine.raw_connection()
-        cur = conn.cursor()
+        if st.button("Login"):
+            
+            import bcrypt
 
-        cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = %s AND u.username = %s",
-                    (contractor, username))
-        user = cur.fetchone()
+            engine = get_sqlalchemy_engine()
+            conn = engine.raw_connection()
+            cur = conn.cursor()
 
-        cur.close()
-        conn.close()
+            cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = %s AND u.username = %s",
+                        (contractor, username))
+            user = cur.fetchone()
 
-        if user and bcrypt.checkpw(password.encode('utf-8'), user[1].encode('utf-8')):
-            st.session_state["login_state"] = True
-            st.session_state["user_name"] = username
-            role = "re_admin" if contractor == "RE Office" else user[2]
-            st.session_state["role"] = role
-            st.session_state["contractor"] = contractor
-            st.session_state["contractor_id"] = get_contractor_id(contractor)
-            st.success(f"✅ Logged in as {username} ({role})")
-            st.rerun()
-        else:
-            st.error("❌ Invalid login credentials")
+            cur.close()
+            conn.close()
 
-    st.markdown("<h4 style='color:red;'>🔒 You must log in to continue.</h4>", unsafe_allow_html=True)
+            if user and bcrypt.checkpw(password.encode('utf-8'), user[1].encode('utf-8')):
+                st.session_state["login_state"] = True
+                st.session_state["user_name"] = username
+                role = "re_admin" if contractor == "RE Office" else user[2]
+                st.session_state["role"] = role
+                st.session_state["contractor"] = contractor
+                st.session_state["contractor_id"] = get_contractor_id(contractor)
+                st.success(f"✅ Logged in as {username} ({role})")
+                st.rerun()
+            else:
+                st.error("❌ Invalid login credentials")
+
+    st.markdown("""
+    <div style='text-align: center; color: gray; font-size: 12px; margin-top: 50px;'>2025/2026 Hebtron Technologies</div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 # ---------------- MAIN APP ----------------
@@ -74,7 +95,7 @@ st.sidebar.write(f"**Role:** {st.session_state['role']}")
 # Contractor handling
 if st.session_state["role"] == "re_admin":
     st.sidebar.subheader("🔄 Switch Contractor")
-    contractor = st.sidebar.selectbox("Select Contractor", ["Wizpro", "Paschal"], key="contractor_switch")
+    contractor = st.sidebar.selectbox("Select Contractor", ["Wizpro", "Paschal", "Avators"], key="contractor_switch")
     st.session_state["active_contractor"] = get_contractor_id(contractor)
 else:
     contractor = st.session_state["contractor"]
