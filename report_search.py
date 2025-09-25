@@ -3,6 +3,29 @@ import pandas as pd
 from db_utils import get_sqlalchemy_engine
 import calendar
 import io
+import re
+
+def extract_license_plate(vehicle_string):
+    """Extract license plate from vehicle string that may contain contractor name"""
+    if not vehicle_string or vehicle_string.lower() in ['unknown', 'unknown vehicle', '']:
+        return None
+
+    vehicle_string = vehicle_string.strip()
+
+    # Pattern for Kenyan license plates (e.g., KDG 320Z, KDK 825Y, KDS 374F)
+    # Typically: 3 letters, space, 3-4 digits/alphanumerics
+    plate_pattern = re.match(r'^([A-Z]{3}\s*\d{1,4}[A-Z]*)\s*(.*)', vehicle_string.upper())
+
+    if plate_pattern:
+        return plate_pattern.group(1).replace(' ', '')  # Remove spaces from plate
+
+    # Fallback: try to find any license plate-like pattern
+    fallback_pattern = re.search(r'([A-Z]{2,4}\s*\d{1,4}[A-Z]*)', vehicle_string.upper())
+    if fallback_pattern:
+        return fallback_pattern.group(1).replace(' ', '')
+
+    # If no pattern matches, return the whole string as potential plate
+    return vehicle_string.replace(' ', '').upper()
 
 # ---------------------- SAVE IDLE WITH DESCRIPTION ----------------------
 def save_idle_report(idle_df, uploaded_by, engine):
@@ -91,10 +114,19 @@ def get_weekly_data(vehicle, week_start, week_end):
     """
     idle_df = pd.read_sql_query(idle_query, engine, params=(week_start, week_end))
     if vehicle != "All":
-        def normalize(v):
-            return v.strip().upper().rstrip('-')
-        vehicle_norm = normalize(vehicle)
-        idle_df = idle_df[idle_df['vehicle'].apply(normalize) == vehicle_norm]
+        # Extract license plate from selected vehicle for matching
+        selected_plate = extract_license_plate(vehicle)
+        if selected_plate:
+            # Filter by matching license plates in idle data
+            idle_df['extracted_plate'] = idle_df['vehicle'].apply(extract_license_plate)
+            idle_df = idle_df[idle_df['extracted_plate'] == selected_plate]
+            idle_df = idle_df.drop('extracted_plate', axis=1)
+        else:
+            # Fallback to original logic if license plate extraction fails
+            def normalize(v):
+                return v.strip().upper().rstrip('-')
+            vehicle_norm = normalize(vehicle)
+            idle_df = idle_df[idle_df['vehicle'].apply(normalize) == vehicle_norm]
 
     if idle_df.empty:
         return pd.DataFrame()
@@ -115,13 +147,34 @@ def get_weekly_data(vehicle, week_start, week_end):
 
     # --- FILTER BY VEHICLE ---
     if vehicle != "All":
-        def normalize(v):
-            return v.strip().upper().rstrip('-')
-        vehicle_norm = normalize(vehicle)
-        idle_df = idle_df[idle_df['vehicle'].apply(normalize) == vehicle_norm]
-        incidents_df = incidents_df[incidents_df['patrol_car'].apply(normalize) == vehicle_norm]
-        breaks_df = breaks_df[breaks_df['vehicle'].apply(normalize) == vehicle_norm]
-        pickups_df = pickups_df[pickups_df['vehicle'].apply(normalize) == vehicle_norm]
+        # Extract license plate from selected vehicle for matching
+        selected_plate = extract_license_plate(vehicle)
+        if selected_plate:
+            # Filter all data sources by matching license plates
+            idle_df['extracted_plate'] = idle_df['vehicle'].apply(extract_license_plate)
+            idle_df = idle_df[idle_df['extracted_plate'] == selected_plate]
+            idle_df = idle_df.drop('extracted_plate', axis=1)
+
+            incidents_df['extracted_plate'] = incidents_df['patrol_car'].apply(extract_license_plate)
+            incidents_df = incidents_df[incidents_df['extracted_plate'] == selected_plate]
+            incidents_df = incidents_df.drop('extracted_plate', axis=1)
+
+            breaks_df['extracted_plate'] = breaks_df['vehicle'].apply(extract_license_plate)
+            breaks_df = breaks_df[breaks_df['extracted_plate'] == selected_plate]
+            breaks_df = breaks_df.drop('extracted_plate', axis=1)
+
+            pickups_df['extracted_plate'] = pickups_df['vehicle'].apply(extract_license_plate)
+            pickups_df = pickups_df[pickups_df['extracted_plate'] == selected_plate]
+            pickups_df = pickups_df.drop('extracted_plate', axis=1)
+        else:
+            # Fallback to original logic if license plate extraction fails
+            def normalize(v):
+                return v.strip().upper().rstrip('-')
+            vehicle_norm = normalize(vehicle)
+            idle_df = idle_df[idle_df['vehicle'].apply(normalize) == vehicle_norm]
+            incidents_df = incidents_df[incidents_df['patrol_car'].apply(normalize) == vehicle_norm]
+            breaks_df = breaks_df[breaks_df['vehicle'].apply(normalize) == vehicle_norm]
+            pickups_df = pickups_df[pickups_df['vehicle'].apply(normalize) == vehicle_norm]
 
     # Prepare columns as numeric
     idle_df["Incident"] = 0.0

@@ -1,174 +1,156 @@
 import streamlit as st
 import pandas as pd
+import io
 from datetime import timedelta
-from db_utils import save_idle_report, get_idle_reports
+from db_utils import save_idle_report, get_idle_reports, get_connection
 
+# 🔹 Column translation map
+TRANSLATION_MAP = {
+    "Status": "Status",
+    "Start": "Idle Start",
+    "End": "Idle End",
+    "Duration": "Idle Duration (min)",
+    "Stop position": "Location",
+    "Length": "Distance (km)",
+    "Top speed": "Top Speed (km/h)",
+    "Average speed": "Avg. Speed (km/h)",
+    "Fuel consumption": "Fuel Used (L)",
+    "Avg. fuel cons. (100 km)": "Fuel Efficiency (L/100km)",
+    "Fuel cost": "Fuel Cost (Ksh)",
+    "Engine idle": "Engine Idle (min)",
+    "Driver": "Driver",
+    "Trailer": "Trailer"
+}
+
+# 🔹 Clean timestamps
 def clean_data(df):
-    df = df.dropna(how='all')
+    df = df.dropna(how="all")
     for col in df.columns:
-        if 'time' in col.lower() or 'date' in col.lower():
+        if "time" in col.lower() or "date" in col.lower():
             try:
                 df[col] = pd.to_datetime(df[col])
             except Exception:
                 pass
     return df
 
-def find_idle_times(df, vehicle_col, time_col, speed_col, idle_threshold=5):
-    idle_report = []
-    for vehicle_id, group in df.groupby(vehicle_col):
-        group = group.sort_values(time_col).copy()
-        # Convert speed to numeric, treat non-numeric as 0 (idle)
-        group['speed_val'] = pd.to_numeric(group[speed_col], errors='coerce').fillna(0)
-        # Idle if speed <= 2 or NaN
-        group['is_idle'] = (group['speed_val'] <= 2) | group['speed_val'].isna()
-        # Find idle periods using vectorized operations
-        group['idle_start'] = group[time_col].where(group['is_idle'] & ~group['is_idle'].shift(1, fill_value=False), pd.NaT)
-        group['idle_end'] = group[time_col].where(group['is_idle'] & ~group['is_idle'].shift(-1, fill_value=False), pd.NaT)
-        # Forward fill idle_start for consecutive idle rows
-        group['idle_start'] = group['idle_start'].fillna(method='ffill')
-        # Filter to rows where idle_end is set
-        idle_periods = group.dropna(subset=['idle_end'])
-        for _, row in idle_periods.iterrows():
-            idle_duration = (row['idle_end'] - row['idle_start']).total_seconds() / 60
-            if idle_duration > idle_threshold:
-                idle_report.append({
-                    'Vehicle': vehicle_id,
-                    'Idle Start': row['idle_start'],
-                    'Idle End': row['idle_end'],
-                    'Idle Duration (min)': round(idle_duration, 2)
-                })
-    return pd.DataFrame(idle_report)
+# 🔹 Extract vehicle number + normalize report
+def preprocess_vts_file(uploaded_file):
+    # Load as raw (no headers yet)
+    try:
+        raw_df = pd.read_excel(uploaded_file, header=None, engine="xlrd")
+    except:
+        raw_df = pd.read_excel(uploaded_file, header=None, engine="openpyxl")
 
-def idle_time_analyzer_page():
-    st.header("Idle Time Analyzer")
-    st.info("Upload an Excel or CSV file downloaded from your GPS website to analyze idle time.")
+    # Detect vehicle number from "Object:" row
+    vehicle_number = "Unknown Vehicle"
+    for row in raw_df[0]:
+        if isinstance(row, str) and row.startswith("Object:"):
+            vehicle_number = row.replace("Object:", "").strip()
+            break
 
-    uploaded_file = st.file_uploader('Upload Excel or CSV file', type=['csv', 'xlsx'])
-    if uploaded_file:
-        if uploaded_file.name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
-        df = clean_data(df)
-        st.write('Cleaned Data:', df.head())
+    # Detect where header row starts (where "Status" appears)
+    header_row = raw_df[raw_df.eq("Status").any(axis=1)].index[0]
 
-        columns = df.columns.tolist()
-        vehicle_col = st.selectbox('Select vehicle ID column', columns)
-        time_col = st.selectbox('Select timestamp column', columns)
-        speed_col = st.selectbox('Select speed column (0 = idle)', columns)
-        threshold = st.number_input('Idle threshold (minutes)', min_value=1, value=5)
+    # Reload properly with header
+    try:
+        df = pd.read_excel(uploaded_file, header=header_row, engine="xlrd")
+    except:
+        df = pd.read_excel(uploaded_file, header=header_row, engine="openpyxl")
 
-        if st.button('Analyze Idle Times'):
-            idle_df = find_idle_times(df, vehicle_col, time_col, speed_col, idle_threshold=threshold)
-            st.write('Idle Periods (> threshold):', idle_df)
-            st.download_button('Download Idle Report', idle_df.to_csv(index=False), file_name='idle_report.csv')
-            
-            if not idle_df.empty:
-                if st.button("Save Idle Report to Database"):
-                    try:
-                        print("DF columns before save:", idle_df.columns)
-                        print(idle_df.head())
-                        save_idle_report(idle_df, st.session_state.get('user_name', 'Unknown'))
-                        st.success("Idle report saved to database!")
-                    except Exception as e:
-                        st.error(f"Error saving to database: {e}")
+    # Rename using translation map
+    df = df.rename(columns={col: TRANSLATION_MAP[col] for col in df.columns if col in TRANSLATION_MAP})
 
-def view_idle_reports_page():
-    st.header("Saved Idle Reports")
-    df = get_idle_reports()
-    st.dataframe(df)
-    st.download_button("Download All Idle Reports", df.to_csv(index=False), file_name="all_idle_reports.csv")
+    # Add vehicle column
+    df["Vehicle"] = vehicle_number
 
-import streamlit as st
-import pandas as pd
-from db_utils import save_idle_report, get_idle_reports, get_connection
+    # Convert duration to minutes if needed
+    if "Idle Duration (min)" in df.columns:
+        df["Idle Duration (min)"] = (
+            pd.to_timedelta(df["Idle Duration (min)"], errors="coerce").dt.total_seconds() / 60
+        ).fillna(df["Idle Duration (min)"])
 
-st.title("Idle Time Analyzer")
+    return df
 
-# --- Upload and Analyze ---
-uploaded_file = st.file_uploader("Upload Idle Report (CSV or Excel)", type=["csv", "xlsx"])
-threshold = st.number_input("Idle Duration Threshold (min)", min_value=0.0, value=10.0)
+# 🔹 Main Streamlit App
+st.title("🚗 Idle Time Analyzer (VTS Reports)")
+
+uploaded_file = st.file_uploader("Upload VTS Report (CSV/XLS/XLSX)", type=["csv", "xls", "xlsx"])
+threshold = st.number_input("Idle Duration Threshold (minutes)", min_value=0.0, value=10.0)
 
 idle_periods_df = pd.DataFrame()
 
 if uploaded_file:
-    if uploaded_file.name.endswith('.csv'):
+    if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
-        df = pd.read_excel(uploaded_file)
-    # Normalize columns
-    df.columns = df.columns.str.strip().str.lower()
-    df = df.rename(columns={
-        'vehicle': 'Vehicle',
-        'idle start': 'Idle Start',
-        'idle_end': 'Idle End',
-        'idle end': 'Idle End',
-        'idle duration (min)': 'Idle Duration (min)',
-        'idle_duration_min': 'Idle Duration (min)'
-    })
-    df.columns = [c.lower() for c in df.columns]
-    # Convert types
-    df['idle start'] = pd.to_datetime(df['idle start'], errors='coerce')
-    df['idle end'] = pd.to_datetime(df['idle end'], errors='coerce')
-    df['idle duration (min)'] = pd.to_numeric(df['idle duration (min)'], errors='coerce')
-    df = df.dropna(subset=['vehicle', 'idle start', 'idle end', 'idle duration (min)'])
-    # Filter by threshold
-    idle_periods_df = df[df['idle duration (min)'] > threshold]
-    st.subheader("Idle Periods (> threshold)")
-    st.dataframe(idle_periods_df)
+        # Handle raw VTS Excel with "Object:" info
+        df = preprocess_vts_file(uploaded_file)
 
-    # --- Save to Database ---
-    if not idle_periods_df.empty and st.button("Save These Idle Periods to Database"):
-        save_idle_report(idle_periods_df, uploaded_by=st.session_state.get("username", "System"))
-        st.success("Idle periods saved to database!")
+    st.subheader("📊 Processed Data Preview")
+    st.dataframe(df.head(20))
 
-# --- View, Filter, Delete, Download ---
-st.header("Saved Idle Reports")
-# Fetch all idle reports
+    # Ensure correct columns exist
+    if {"Vehicle", "Idle Start", "Idle End", "Idle Duration (min)"}.issubset(df.columns):
+        # Drop missing values
+        df = df.dropna(subset=["Vehicle", "Idle Start", "Idle End", "Idle Duration (min)"])
+        # Filter by threshold
+        idle_periods_df = df[df["Idle Duration (min)"] > threshold]
+
+        st.subheader("🛑 Idle Periods (> threshold)")
+        st.dataframe(idle_periods_df)
+
+        # Save to DB
+        if not idle_periods_df.empty and st.button("💾 Save to Database"):
+            save_idle_report(idle_periods_df, uploaded_by=st.session_state.get("username", "System"))
+            st.success("✅ Idle periods saved to database!")
+
+# 🔹 View, Filter, Delete, Download
+st.header("📂 Saved Idle Reports")
 df = get_idle_reports(limit=1000)
 
-# --- FILTERS ---
-st.subheader("Filter Idle Reports")
-vehicles = df['Vehicle'].unique()
-selected_vehicle = st.selectbox("Vehicle", options=["All"] + list(vehicles))
-if selected_vehicle != "All":
-    df = df[df['Vehicle'] == selected_vehicle]
+# --- Filters ---
+if not df.empty:
+    st.subheader("Filter Idle Reports")
+    vehicles = df["Vehicle"].unique()
+    selected_vehicle = st.selectbox("Vehicle", options=["All"] + list(vehicles))
+    if selected_vehicle != "All":
+        df = df[df["Vehicle"] == selected_vehicle]
 
-date_min = df['Idle Start'].min()
-date_max = df['Idle Start'].max()
-date_range = st.date_input("Idle Start Date Range", [date_min, date_max])
-if date_range:
-    df = df[(df['Idle Start'] >= pd.to_datetime(date_range[0])) & (df['Idle Start'] <= pd.to_datetime(date_range[1]))]
+    if "Idle Start" in df.columns:
+        date_min = df["Idle Start"].min()
+        date_max = df["Idle Start"].max()
+        date_range = st.date_input("Idle Start Date Range", [date_min, date_max])
+        if date_range:
+            df = df[
+                (df["Idle Start"] >= pd.to_datetime(date_range[0]))
+                & (df["Idle Start"] <= pd.to_datetime(date_range[1]))
+            ]
 
-# Delete
-delete_ids = st.multiselect("Select rows to delete (by ID)", df['ID'])
-if st.button("Delete Selected"):
-    if delete_ids:
-        conn = get_connection()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM idle_reports WHERE id = ANY(%s)", (delete_ids,))
-        conn.commit()
-        cur.close()
-        conn.close()
-        st.success(f"Deleted {len(delete_ids)} row(s). Please refresh to see changes.")
+    # Delete selected
+    if "ID" in df.columns:
+        delete_ids = st.multiselect("Select rows to delete (by ID)", df["ID"])
+        if st.button("🗑 Delete Selected"):
+            if delete_ids:
+                conn = get_connection()
+                cur = conn.cursor()
+                cur.execute("DELETE FROM idle_reports WHERE id = ANY(%s)", (delete_ids,))
+                conn.commit()
+                cur.close()
+                conn.close()
+                st.success(f"✅ Deleted {len(delete_ids)} row(s). Refresh to see changes.")
 
-# Download
-csv = df.to_csv(index=False).encode('utf-8')
-st.download_button(
-    label="Download as CSV",
-    data=csv,
-    file_name="filtered_idle_reports.csv",
-    mime="text/csv"
-)
+    # Download
+    csv = df.to_csv(index=False).encode("utf-8")
+    st.download_button("⬇️ Download CSV", data=csv, file_name="filtered_idle_reports.csv", mime="text/csv")
 
-import io
-excel_buffer = io.BytesIO()
-df.to_excel(excel_buffer, index=False)
-st.download_button(
-    label="Download as Excel",
-    data=excel_buffer.getvalue(),
-    file_name="filtered_idle_reports.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+    excel_buffer = io.BytesIO()
+    df.to_excel(excel_buffer, index=False)
+    st.download_button(
+        "⬇️ Download Excel",
+        data=excel_buffer.getvalue(),
+        file_name="filtered_idle_reports.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
-st.dataframe(df)
+    st.subheader("📊 Final Data")
+    st.dataframe(df)
