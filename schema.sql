@@ -1,108 +1,116 @@
 -- Database schema for GPS Report Tool
+-- Compatible with both PostgreSQL and SQLite
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(255) UNIQUE NOT NULL,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role VARCHAR(50) DEFAULT 'contractor',
+    role TEXT DEFAULT 'contractor',
     contractor_id INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Contractors table
 CREATE TABLE IF NOT EXISTS contractors (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Incident reports table
 CREATE TABLE IF NOT EXISTS incident_reports (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     incident_date DATE,
     incident_time TIME,
-    caller VARCHAR(255),
-    phone_number VARCHAR(50),
+    caller TEXT,
+    phone_number TEXT,
     location TEXT,
-    bound VARCHAR(50),
-    chainage VARCHAR(50),
+    bound TEXT,
+    chainage TEXT,
     num_vehicles INTEGER,
-    vehicle_type VARCHAR(100),
-    vehicle_condition VARCHAR(100),
+    vehicle_type TEXT,
+    vehicle_condition TEXT,
     num_injured INTEGER,
-    cond_injured VARCHAR(100),
-    injured_part VARCHAR(100),
-    fire_hazard BOOLEAN DEFAULT FALSE,
-    oil_leakage BOOLEAN DEFAULT FALSE,
-    chemical_leakage BOOLEAN DEFAULT FALSE,
-    damage_road_furniture BOOLEAN DEFAULT FALSE,
-    response_time TIMESTAMP,
-    clearing_time TIMESTAMP,
-    department_contact VARCHAR(255),
+    cond_injured TEXT,
+    injured_part TEXT,
+    fire_hazard INTEGER DEFAULT 0,
+    oil_leakage INTEGER DEFAULT 0,
+    chemical_leakage INTEGER DEFAULT 0,
+    damage_road_furniture INTEGER DEFAULT 0,
+    response_time DATETIME,
+    clearing_time DATETIME,
+    department_contact TEXT,
     description TEXT,
-    patrol_car VARCHAR(100),
-    incident_type VARCHAR(100),
-    uploaded_by VARCHAR(255),
+    patrol_car TEXT,
+    incident_type TEXT,
+    uploaded_by TEXT,
     contractor_id INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Incident images table
 CREATE TABLE IF NOT EXISTS incident_images (
-    id SERIAL PRIMARY KEY,
-    incident_id INTEGER REFERENCES incident_reports(id),
-    image_data BYTEA,
-    image_name VARCHAR(255),
-    uploaded_at TIMESTAMP DEFAULT NOW()
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_id INTEGER,
+    image_data BLOB,
+    image_name TEXT,
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (incident_id) REFERENCES incident_reports(id)
 );
 
 -- Idle reports table
 CREATE TABLE IF NOT EXISTS idle_reports (
-    id SERIAL PRIMARY KEY,
-    vehicle VARCHAR(100),
-    idle_start TIMESTAMP,
-    idle_end TIMESTAMP,
-    idle_duration_min DECIMAL(10,2),
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle TEXT,
+    idle_start DATETIME,
+    idle_end DATETIME,
+    idle_duration_min REAL,
     location_address TEXT,
-    latitude DECIMAL(10,8),
-    longitude DECIMAL(11,8),
+    latitude REAL,
+    longitude REAL,
     description TEXT,
-    uploaded_by VARCHAR(255),
+    uploaded_by TEXT,
     contractor_id INTEGER,
-    uploaded_at TIMESTAMP DEFAULT NOW()
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Breaks table
 CREATE TABLE IF NOT EXISTS breaks (
-    id SERIAL PRIMARY KEY,
-    vehicle VARCHAR(100),
-    break_start TIMESTAMP,
-    break_end TIMESTAMP,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle TEXT,
+    break_start DATETIME,
+    break_end DATETIME,
     reason TEXT,
     break_date DATE,
     contractor_id INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Pickups table
 CREATE TABLE IF NOT EXISTS pickups (
-    id SERIAL PRIMARY KEY,
-    vehicle VARCHAR(100),
-    pickup_start TIMESTAMP,
-    pickup_end TIMESTAMP,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle TEXT,
+    pickup_start DATETIME,
+    pickup_end DATETIME,
     description TEXT,
     pickup_date DATE,
     contractor_id INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Accidents table (if needed)
 CREATE TABLE IF NOT EXISTS accidents (
-    id SERIAL PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     accident_date DATE,
-    vehicle VARCHAR(100),
+    vehicle TEXT,
     description TEXT,
     contractor_id INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Insert default contractors (only if table is empty)
+INSERT OR IGNORE INTO contractors (name) VALUES ('Wizpro');
+INSERT OR IGNORE INTO contractors (name) VALUES ('Paschal');
+INSERT OR IGNORE INTO contractors (name) VALUES ('RE Office');
+INSERT OR IGNORE INTO contractors (name) VALUES ('Avators');

@@ -1,81 +1,147 @@
 # db_utils.py
-import psycopg2
-import psycopg2.extras
 import bcrypt
 import pandas as pd
 import traceback
 from sqlalchemy import create_engine, text
 import streamlit as st
 from datetime import datetime
+import os
 
 # ------------------- DATABASE CONFIG -------------------
-DB_HOST = "localhost"
-DB_PORT = 5432
-DB_NAME = "postgres"
-DB_USER = "postgres"
-DB_PASS = "Hebtron123"
+# Set to True for SQLite (works on Streamlit Cloud), False for PostgreSQL
+USE_SQLITE = os.getenv("USE_SQLITE", "true").lower() == "true"
+
+if USE_SQLITE:
+    # SQLite configuration (file-based, works on Streamlit Cloud)
+    DB_FILE = "vts_database.db"
+else:
+    # PostgreSQL configuration
+    DB_HOST = "localhost"
+    DB_PORT = 5432
+    DB_NAME = "postgres"
+    DB_USER = "postgres"
+    DB_PASS = "Hebtron123"
+
+    # Import psycopg2 only when needed
+    import psycopg2
+    import psycopg2.extras
 # -------------------------------------------------------
 
 # ------------------- CONNECTION HELPERS ----------------
 def get_connection():
-    return psycopg2.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASS
-    )
+    if USE_SQLITE:
+        # For SQLite, we'll use SQLAlchemy engine directly
+        # This function returns None for SQLite since we use engine
+        return None
+    else:
+        return psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS
+        )
 
 def get_sqlalchemy_engine():
-    db_url = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-    return create_engine(db_url)
+    if USE_SQLITE:
+        # SQLite engine with proper configuration for Streamlit
+        db_url = f"sqlite:///{DB_FILE}"
+        engine = create_engine(db_url, connect_args={"check_same_thread": False})
+        # Initialize database schema if using SQLite
+        initialize_sqlite_database(engine)
+        return engine
+    else:
+        db_url = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        return create_engine(db_url)
+
+def initialize_sqlite_database(engine):
+    """Initialize SQLite database with schema if it doesn't exist"""
+    try:
+        # Check if tables exist by trying to query users table
+        with engine.begin() as conn:
+            result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+            if not result.fetchone():
+                # Tables don't exist, create them
+                print("Initializing SQLite database...")
+
+                # Read and execute schema.sql
+                schema_path = "schema.sql"
+                if os.path.exists(schema_path):
+                    with open(schema_path, 'r') as f:
+                        schema_sql = f.read()
+
+                    # Split by semicolon and execute each statement
+                    statements = [stmt.strip() for stmt in schema_sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
+
+                    for statement in statements:
+                        if statement:
+                            try:
+                                conn.execute(text(statement))
+                            except Exception as e:
+                                print(f"Warning: Could not execute statement: {statement[:50]}... Error: {e}")
+
+                    print("✅ SQLite database initialized successfully!")
+                else:
+                    print("❌ schema.sql file not found!")
+    except Exception as e:
+        print(f"❌ Error initializing SQLite database: {e}")
 # -------------------------------------------------------
 
 # ------------------- USER MANAGEMENT -------------------
 def add_user(username, plain_password, name, contractor_id=None, role="contractor"):
     """Add a new user with hashed password"""
     hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO users (username, password_hash, role, contractor_id)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (username) DO NOTHING
-        """,
-        (username, hashed, role, contractor_id)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+
+    if USE_SQLITE:
+        engine = get_sqlalchemy_engine()
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id)
+                VALUES (:username, :password_hash, :role, :contractor_id)
+            """), {
+                "username": username,
+                "password_hash": hashed,
+                "role": role,
+                "contractor_id": contractor_id
+            })
+    else:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO users (username, password_hash, role, contractor_id)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (username) DO NOTHING
+            """,
+            (username, hashed, role, contractor_id)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
 
 def get_user(username, contractor_id=None):
     """Fetch user for login. If contractor_id is passed, restrict login to that contractor."""
-    conn = get_connection()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    engine = get_sqlalchemy_engine()
 
     if contractor_id:
-        cur.execute(
-            """
+        query = text("""
             SELECT id, username, password_hash as password, role, contractor_id
             FROM users
-            WHERE username = %s AND contractor_id = %s
-            """,
-            (username, contractor_id)
-        )
+            WHERE username = :username AND contractor_id = :contractor_id
+        """)
+        params = {"username": username, "contractor_id": contractor_id}
     else:
-        cur.execute(
-            """
+        query = text("""
             SELECT id, username, password_hash as password, role, contractor_id
             FROM users
-            WHERE username = %s
-            """,
-            (username,)
-        )
+            WHERE username = :username
+        """)
+        params = {"username": username}
 
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    with engine.begin() as conn:
+        result = conn.execute(query, params)
+        row = result.fetchone()
+
     return dict(row) if row else None
 
 def verify_password(plain_password, hashed_password):
@@ -94,23 +160,19 @@ def get_active_contractor():
     return st.session_state.get("contractor_id")
 
 def get_contractor_id(name):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM contractors WHERE name = %s", (name,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    engine = get_sqlalchemy_engine()
+    with engine.begin() as conn:
+        result = conn.execute(text("SELECT id FROM contractors WHERE name = :name"), {"name": name})
+        row = result.fetchone()
     return row[0] if row else None
 
 def get_contractor_name(contractor_id):
     if not contractor_id:
         return None
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT name FROM contractors WHERE id = %s", (contractor_id,))
-    row = cur.fetchone()
-    cur.close()
-    conn.close()
+    engine = get_sqlalchemy_engine()
+    with engine.begin() as conn:
+        result = conn.execute(text("SELECT name FROM contractors WHERE id = :contractor_id"), {"contractor_id": contractor_id})
+        row = result.fetchone()
     return row[0] if row else None
 # -------------------------------------------------------
 
@@ -123,73 +185,105 @@ def save_incident_report(data, uploaded_by="Unknown"):
     """Save incident report into DB"""
     data = clean_data(data)
     contractor_id = get_active_contractor()
+    engine = get_sqlalchemy_engine()
 
-    conn = get_connection()
-    cur = conn.cursor()
+    # Prepare data for insertion
+    insert_data = {
+        "incident_date": data.get("incident_date"),
+        "incident_time": str(data.get("incident_time")) if data.get("incident_time") else None,
+        "caller": data.get("caller"),
+        "phone_number": data.get("phone_number"),
+        "location": data.get("location"),
+        "bound": data.get("bound"),
+        "chainage": data.get("chainage"),
+        "num_vehicles": data.get("num_vehicles"),
+        "vehicle_type": data.get("vehicle_type"),
+        "vehicle_condition": data.get("vehicle_condition"),
+        "num_injured": data.get("num_injured"),
+        "cond_injured": data.get("cond_injured"),
+        "injured_part": data.get("injured_part"),
+        "fire_hazard": data.get("fire_hazard"),
+        "oil_leakage": data.get("oil_leakage"),
+        "chemical_leakage": data.get("chemical_leakage"),
+        "damage_road_furniture": data.get("damage_road_furniture"),
+        "response_time": data.get("response_time"),
+        "clearing_time": data.get("clearing_time"),
+        "department_contact": data.get("department_contact"),
+        "description": data.get("description"),
+        "patrol_car": data.get("patrol_car"),
+        "incident_type": data.get("incident_type"),
+        "uploaded_by": uploaded_by,
+        "contractor_id": contractor_id
+    }
 
-    cur.execute("""
-        INSERT INTO incident_reports (
-            incident_date, incident_time, caller, phone_number,
-            location, bound, chainage, num_vehicles, vehicle_type,
-            vehicle_condition, num_injured, cond_injured, injured_part,
-            fire_hazard, oil_leakage, chemical_leakage, damage_road_furniture,
-            response_time, clearing_time, department_contact,
-            description, patrol_car, incident_type, created_at,
-            uploaded_by, contractor_id
-        ) VALUES (
-            %s, %s, %s, %s,
-            %s, %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s, NOW(),
-            %s, %s
-        )
-        RETURNING id
-    """, (
-        data.get("incident_date"),
-        str(data.get("incident_time")) if data.get("incident_time") else None,
-        data.get("caller"),
-        data.get("phone_number"),
-        data.get("location"),
-        data.get("bound"),
-        data.get("chainage"),
-        data.get("num_vehicles"),
-        data.get("vehicle_type"),
-        data.get("vehicle_condition"),
-        data.get("num_injured"),
-        data.get("cond_injured"),
-        data.get("injured_part"),
-        data.get("fire_hazard"),
-        data.get("oil_leakage"),
-        data.get("chemical_leakage"),
-        data.get("damage_road_furniture"),
-        data.get("response_time"),
-        data.get("clearing_time"),
-        data.get("department_contact"),
-        data.get("description"),
-        data.get("patrol_car"),
-        data.get("incident_type"),
-        uploaded_by,
-        contractor_id
-    ))
+    if USE_SQLITE:
+        # SQLite version
+        insert_data["created_at"] = datetime.now()
 
-    report_id = cur.fetchone()[0]
-    conn.commit()
-    cur.close()
-    conn.close()
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                INSERT INTO incident_reports (
+                    incident_date, incident_time, caller, phone_number,
+                    location, bound, chainage, num_vehicles, vehicle_type,
+                    vehicle_condition, num_injured, cond_injured, injured_part,
+                    fire_hazard, oil_leakage, chemical_leakage, damage_road_furniture,
+                    response_time, clearing_time, department_contact,
+                    description, patrol_car, incident_type, created_at,
+                    uploaded_by, contractor_id
+                ) VALUES (
+                    :incident_date, :incident_time, :caller, :phone_number,
+                    :location, :bound, :chainage, :num_vehicles, :vehicle_type,
+                    :vehicle_condition, :num_injured, :cond_injured, :injured_part,
+                    :fire_hazard, :oil_leakage, :chemical_leakage, :damage_road_furniture,
+                    :response_time, :clearing_time, :department_contact,
+                    :description, :patrol_car, :incident_type, :created_at,
+                    :uploaded_by, :contractor_id
+                )
+            """), insert_data)
+
+            # Get the last inserted row id for SQLite
+            result = conn.execute(text("SELECT last_insert_rowid()"))
+            report_id = result.fetchone()[0]
+    else:
+        # PostgreSQL version
+        with engine.begin() as conn:
+            result = conn.execute(text("""
+                INSERT INTO incident_reports (
+                    incident_date, incident_time, caller, phone_number,
+                    location, bound, chainage, num_vehicles, vehicle_type,
+                    vehicle_condition, num_injured, cond_injured, injured_part,
+                    fire_hazard, oil_leakage, chemical_leakage, damage_road_furniture,
+                    response_time, clearing_time, department_contact,
+                    description, patrol_car, incident_type, created_at,
+                    uploaded_by, contractor_id
+                ) VALUES (
+                    :incident_date, :incident_time, :caller, :phone_number,
+                    :location, :bound, :chainage, :num_vehicles, :vehicle_type,
+                    :vehicle_condition, :num_injured, :cond_injured, :injured_part,
+                    :fire_hazard, :oil_leakage, :chemical_leakage, :damage_road_furniture,
+                    :response_time, :clearing_time, :department_contact,
+                    :description, :patrol_car, :incident_type, NOW(),
+                    :uploaded_by, :contractor_id
+                )
+                RETURNING id
+            """), insert_data)
+
+            report_id = result.fetchone()[0]
+
     return report_id
 
 def save_incident_image(incident_id, image_bytes, image_name):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO incident_images (incident_id, image_data, image_name) VALUES (%s, %s, %s)",
-        (incident_id, psycopg2.Binary(image_bytes), image_name)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    engine = get_sqlalchemy_engine()
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO incident_images (incident_id, image_data, image_name)
+            VALUES (:incident_id, :image_data, :image_name)
+        """), {
+            "incident_id": incident_id,
+            "image_data": image_bytes,  # SQLite can handle bytes directly
+            "image_name": image_name
+        })
 
 def get_recent_incident_reports(limit=20):
     engine = get_sqlalchemy_engine()
