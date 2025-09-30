@@ -101,6 +101,17 @@ def get_contractor_id(name):
     cur.close()
     conn.close()
     return row[0] if row else None
+
+def get_contractor_name(contractor_id):
+    if not contractor_id:
+        return None
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM contractors WHERE id = %s", (contractor_id,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    return row[0] if row else None
 # -------------------------------------------------------
 
 # ------------------- INCIDENT REPORTS ------------------

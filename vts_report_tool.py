@@ -12,7 +12,40 @@ import folium
 from streamlit_autorefresh import st_autorefresh
 
 # ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="VTS REPORT TOOL", layout="wide")
+st.set_page_config(
+    page_title="VTS REPORT TOOL",
+    layout="wide",
+    page_icon="Kenhalogo.png" if os.path.exists("Kenhalogo.png") else None
+)
+
+# PWA Support - Add manifest, meta tags, and service worker
+st.markdown("""
+<link rel="manifest" href="/static/pwa_manifest.json">
+<meta name="theme-color" content="#004080">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="VTS Reports">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="msapplication-TileColor" content="#004080">
+<meta name="msapplication-config" content="/browserconfig.xml">
+""", unsafe_allow_html=True)
+
+# Register Service Worker
+st.markdown("""
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/static/sw.js')
+            .then(function(registration) {
+                console.log('SW registered: ', registration);
+            })
+            .catch(function(registrationError) {
+                console.log('SW registration failed: ', registrationError);
+            });
+    });
+}
+</script>
+""", unsafe_allow_html=True)
 
 # Logo & Title
 if os.path.exists("Kenhalogo.png"):
@@ -102,6 +135,97 @@ else:
 
 st.sidebar.write(f"**Contractor:** {contractor}")
 
+# Downloads
+st.sidebar.subheader("📥 Downloads")
+
+# PWA Install Button
+import streamlit.components.v1 as components
+
+pwa_install_html = """
+<div id="install-container" style="margin-bottom: 10px;">
+    <button id="install-btn" style="
+        background: #004080;
+        color: white;
+        border: none;
+        padding: 12px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 14px;
+        font-weight: bold;
+        margin-bottom: 8px;
+    ">
+        📱 Install VTS Report Tool
+    </button>
+    <button id="manual-install-btn" style="
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        border-radius: 3px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 12px;
+    ">
+        🔧 Manual Install Instructions
+    </button>
+    <div id="manual-instructions" style="display: none; margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 3px; font-size: 12px;">
+        <strong>Manual Installation:</strong><br>
+        1. Open Chrome menu (⋮)<br>
+        2. Click "Install VTS Report Tool"<br>
+        3. Or click "Add to Home Screen"<br>
+        <em>Note: May not work on localhost</em>
+    </div>
+</div>
+<script>
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    console.log('beforeinstallprompt event fired');
+    e.preventDefault();
+    deferredPrompt = e;
+    // Keep button visible since PWA is supported
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const installBtn = document.getElementById('install-btn');
+    const manualBtn = document.getElementById('manual-install-btn');
+    const instructions = document.getElementById('manual-instructions');
+
+    installBtn.addEventListener('click', async () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log('User response to install prompt:', outcome);
+            deferredPrompt = null;
+            installBtn.textContent = '✅ Installed!';
+            installBtn.disabled = true;
+        } else {
+            // Fallback for when PWA prompt is not available
+            alert('PWA installation not available. Try manual installation or use Chrome on a proper domain.');
+        }
+    });
+
+    manualBtn.addEventListener('click', () => {
+        instructions.style.display = instructions.style.display === 'none' ? 'block' : 'none';
+    });
+});
+
+window.addEventListener('appinstalled', (evt) => {
+    console.log('PWA was installed successfully');
+    const installBtn = document.getElementById('install-btn');
+    installBtn.textContent = '✅ Installed!';
+    installBtn.disabled = true;
+});
+</script>
+"""
+
+components.html(pwa_install_html, height=60)
+
+if st.sidebar.button("📦 Download Web App Package"):
+    st.session_state["show_web_download"] = True
+    st.rerun()
+
 # Logout
 if st.sidebar.button("🚪 Logout"):
     for key in list(st.session_state.keys()):
@@ -120,6 +244,230 @@ def get_vehicles_for_contractor(contractor):
     with engine.begin() as conn:
         result = conn.execute(query, {"contractor": contractor})
         return [{"id": row[0], "plate_number": row[1]} for row in result.fetchall()]
+
+# Web App Download Section
+if st.session_state.get("show_web_download", False):
+    st.header("🌐 Download Web App")
+    st.write("Get the complete VTS Report Tool as a downloadable web application!")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("💻 Standalone Executable")
+        st.write("Download a single executable file that runs the entire web app:")
+        st.info("Run `python web_app_packager.py` and choose option 1 to create the executable")
+        st.code("python web_app_packager.py", language="bash")
+        st.warning("Executable creation requires PyInstaller and may take several minutes")
+
+    with col2:
+        st.subheader("🐍 Python Web Package")
+        st.write("Download the complete Python package:")
+
+        # Create web app package ZIP on disk
+        zip_path = "downloads/vts_web_app_package.zip"
+
+        if not os.path.exists(zip_path) or st.button("🔄 Regenerate Package"):
+            import zipfile
+
+            with st.spinner("Creating web app package..."):
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                    # Core files
+                    core_files = [
+                        'vts_report_tool.py', 'api.py', 'db_utils.py', 'schema.sql',
+                        'web_app_packager.py', 'Kenhalogo.png', 'README.md'
+                    ]
+                    for file in core_files:
+                        if os.path.exists(file):
+                            zip_file.write(file)
+
+                    # Directories
+                    dirs_to_include = ['dejavu-fonts-ttf-2.37', 'static']
+                    for dir_name in dirs_to_include:
+                        if os.path.exists(dir_name):
+                            for root, dirs, files in os.walk(dir_name):
+                                for file in files:
+                                    file_path = os.path.join(root, file)
+                                    arcname = os.path.relpath(file_path)
+                                    zip_file.write(file_path, arcname)
+
+                    # Create requirements.txt in ZIP
+                    requirements_content = '''streamlit>=1.28.0
+pandas>=2.0.0
+psycopg2-binary>=2.9.0
+bcrypt>=4.0.0
+sqlalchemy>=2.0.0
+folium>=0.14.0
+streamlit-folium>=0.17.0
+streamlit-autorefresh>=1.0.0
+Pillow>=10.0.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-jose[cryptography]>=3.5.0
+passlib[bcrypt]>=1.7.0
+python-multipart>=0.0.6'''
+                    zip_file.writestr('requirements.txt', requirements_content)
+
+                    # Create run script in ZIP
+                    run_script_content = '''#!/usr/bin/env python3
+"""
+VTS Report Tool Launcher
+Run this script to start the web application
+"""
+
+import subprocess
+import sys
+import os
+
+def main():
+    print("🚀 VTS Report Tool Web App")
+    print("=" * 40)
+
+    # Check if required packages are installed
+    try:
+        import streamlit
+        import pandas
+        import fastapi
+        print("✅ Required packages are installed")
+    except ImportError:
+        print("❌ Installing required packages...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+        print("✅ Packages installed successfully")
+
+    print("\\n🌐 Starting web application...")
+    print("The app will open in your default browser.")
+    print("Press Ctrl+C to stop the server.\\n")
+
+    try:
+        # Start the Streamlit app
+        subprocess.run([
+            sys.executable, "-m", "streamlit", "run",
+            "vts_report_tool.py",
+            "--server.port", "8501",
+            "--server.address", "localhost",
+            "--browser.gatherUsageStats", "false"
+        ])
+    except KeyboardInterrupt:
+        print("\\n\\n👋 VTS Report Tool stopped.")
+    except Exception as e:
+        print(f"\\n❌ Error starting app: {e}")
+
+if __name__ == "__main__":
+    main()'''
+                    zip_file.writestr('run_app.py', run_script_content)
+
+                    # Create README in ZIP
+                    readme_content = '''# VTS Report Tool - Web App Package
+
+This is a standalone web application package for the VTS Report Tool.
+
+## 🚀 Quick Start
+
+### Option 1: Run with Python Script (Recommended)
+```bash
+python run_app.py
+```
+
+### Option 2: Manual Start
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the web app
+streamlit run vts_report_tool.py
+```
+
+## 📋 Requirements
+
+- Python 3.8 or higher
+- Internet connection for map features
+- PostgreSQL database (configure in db_utils.py)
+
+## 🔧 Configuration
+
+1. Set up your PostgreSQL database
+2. Update database connection in `db_utils.py`
+3. Run the application
+
+## 🌐 Access
+
+Once started, the app will be available at: http://localhost:8501
+
+## 📱 PWA Installation
+
+This web app supports Progressive Web App (PWA) installation for native app-like experience on mobile and desktop devices.
+
+## 🆘 Support
+
+Contact: hebtron25@gmail.com'''
+                    zip_file.writestr('PACKAGE_README.md', readme_content)
+
+            st.success("✅ Web app package created successfully!")
+
+        # Provide download link
+        if os.path.exists(zip_path):
+            with open(zip_path, "rb") as f:
+                zip_data = f.read()
+            st.download_button(
+                label="📦 Download Web App Package",
+                data=zip_data,
+                file_name="vts_web_app_package.zip",
+                mime="application/zip"
+            )
+            st.info(f"📁 Package size: {len(zip_data) / (1024*1024):.1f} MB")
+        else:
+            st.error("❌ Package file not found. Click 'Regenerate Package' to create it.")
+
+    st.subheader("🚀 Quick Start Guide")
+    st.markdown("""
+    ### For Python Package:
+    1. Download the ZIP above
+    2. Extract the files
+    3. Run: `python run_app.py`
+    4. Open browser to http://localhost:8501
+
+    ### For Standalone Executable:
+    1. Run: `python web_app_packager.py` (choose option 1)
+    2. Find executable in `dist/` folder
+    3. Double-click to run
+
+    ### 🌟 PWA Features:
+    - **Install as App**: Use the "📱 Install VTS Report Tool" button in the sidebar, or click browser menu → "Install VTS Report Tool"
+    - **Offline Access**: Core functionality works without internet (except maps and API calls)
+    - **Native App Feel**: Runs fullscreen like a mobile app
+    - **Auto-Updates**: Gets latest features automatically
+    - **Background Sync**: Queues actions when offline and syncs when back online
+    - **Push Notifications**: Receive updates (when implemented)
+
+    ### 🔧 Troubleshooting PWA Installation:
+    If the install button doesn't appear in Chrome:
+    1. **Restart Chrome completely** (close all windows and reopen)
+    2. Make sure you're using Chrome browser (not Edge in IE mode)
+    3. The app must be running on localhost or HTTPS
+    4. Try refreshing the page and waiting a few seconds
+    5. Check Chrome settings:
+       - Go to `chrome://flags/#enable-desktop-pwas` and enable it
+       - For local development: `chrome://flags/#allow-insecure-localhost` and enable it
+    6. Open browser DevTools (F12) → Console tab to check for errors
+    7. Look for "SW registered" and "beforeinstallprompt event fired" messages
+
+    ### Features Included:
+    - ✅ Complete web interface
+    - ✅ User authentication
+    - ✅ Vehicle tracking
+    - ✅ Patrol logs with maps
+    - ✅ Incident reporting
+    - ✅ All analysis tools
+    - ✅ **PWA capabilities** (installable, offline-ready)
+    """)
+
+    if st.button("Back to Main App"):
+        st.session_state["show_web_download"] = False
+        st.rerun()
+
+    st.stop()  # Don't show the rest of the app
+
 
 vehicle_list = get_vehicles_for_contractor(contractor)
 if not vehicle_list:
@@ -177,9 +525,11 @@ if selected_vehicle:
 
 # ---- ROLE BASED PAGES ----
 role = st.session_state["role"]
+contractor = st.session_state.get("contractor", "").lower()
+
 if role == "admin":
     allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
-                     "Report Search", "Breaks & Pickups", "Search Page"]
+                     "Breaks & Pickups", "Search Page"]
 elif role == "control":
     allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
                      "Breaks & Pickups", "Search Page"]
@@ -192,6 +542,10 @@ elif role == "re_admin":
 else:
     allowed_pages = []
 
+# Add Paschal Parking Analyzer for Paschal contractor
+if contractor == "paschal":
+    allowed_pages.append("Paschal Parking Analyzer")
+
 page = st.sidebar.radio("📑 Go to", allowed_pages, key="page_selector")
 
 # ---- PAGE ROUTER ----
@@ -201,6 +555,9 @@ if page == "Incident Report":
 elif page == "Idle Time Analyzer":
     from idle_time_analyzer_page import idle_time_analyzer_page
     idle_time_analyzer_page()
+elif page == "Paschal Parking Analyzer":
+    from paschal_parking_analyzer import paschal_parking_analyzer_page
+    paschal_parking_analyzer_page()
 elif page == "View Idle Reports":
     from idle_time_analyzer_page import view_idle_reports_page
     view_idle_reports_page()

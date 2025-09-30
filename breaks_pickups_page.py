@@ -66,13 +66,13 @@ def show_live_map_for_contractor(refresh_interval=5000):
 
     # Center map on first vehicle
     first_vehicle = vehicles[0]
-    m = folium.Map(location=[first_vehicle['latitude'], first_vehicle['longitude']], zoom_start=12)
+    m = folium.Map(location=[first_vehicle[1], first_vehicle[2]], zoom_start=12)  # latitude, longitude
 
     for v in vehicles:
-        status_color = "green" if v["status"] == "online" else "red"
+        status_color = "green" if v[3] == "online" else "red"  # status
         folium.Marker(
-            location=[v["latitude"], v["longitude"]],
-            popup=f"{v['plate_number']} ({v['status']})",
+            location=[v[1], v[2]],  # latitude, longitude
+            popup=f"{v[0]} ({v[3]})",  # plate_number, status
             icon=folium.Icon(color=status_color, icon="car", prefix="fa")
         ).add_to(m)
 

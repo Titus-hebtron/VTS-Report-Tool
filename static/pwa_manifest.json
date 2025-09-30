@@ -1,0 +1,51 @@
+{
+  "name": "VTS Report Tool",
+  "short_name": "VTS Reports",
+  "description": "Vehicle Tracking System Report Tool - Track vehicles, manage patrols, and generate reports",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#004080",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": ["business", "productivity", "utilities"],
+  "screenshots": [
+    {
+      "src": "screenshot1.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "icons": [
+    {
+      "src": "Kenhalogo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "Kenhalogo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Incident Report",
+      "short_name": "Report",
+      "description": "Create a new incident report",
+      "url": "/?page=Incident%20Report",
+      "icons": [{ "src": "Kenhalogo.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Vehicle Tracking",
+      "short_name": "Tracking",
+      "description": "View vehicle patrol logs",
+      "url": "/?page=Vehicle%20Tracking",
+      "icons": [{ "src": "Kenhalogo.png", "sizes": "96x96" }]
+    }
+  ]
+}
