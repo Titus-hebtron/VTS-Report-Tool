@@ -21,8 +21,9 @@ def extract_license_plate(vehicle_string):
         plate = re.sub(r'\s+', ' ', plate)
         return plate
 
-    # Secondary pattern: 3 letters + 3-4 digits + optional letter (no space)
-    compact_pattern = re.search(r'\b([A-Z]{3}\d{3,4}[A-Z]?)\b', vehicle_string.upper())
+    # Secondary pattern: 3 letters + 3-4 digits + optional letter (no space, may have company name after)
+    # This handles cases like "KDG320ZWIZPROENTERPRISESLTD" -> "KDG320Z"
+    compact_pattern = re.search(r'\b([A-Z]{3}\d{3,4}[A-Z]?)(?:[A-Z]*)*\b', vehicle_string.upper())
     if compact_pattern:
         plate = compact_pattern.group(1)
         # Add space between letters and numbers for consistency
@@ -60,9 +61,9 @@ def save_idle_report(idle_df, uploaded_by, engine):
         cur.execute("""
             SELECT description
             FROM incident_reports
-            WHERE patrol_car = %s
-              AND response_time <= %s
-              AND clearing_time >= %s
+            WHERE patrol_car = ?
+              AND response_time <= ?
+              AND clearing_time >= ?
             LIMIT 1
         """, (vehicle, idle_start, idle_end))
         inc = cur.fetchone()
@@ -74,9 +75,9 @@ def save_idle_report(idle_df, uploaded_by, engine):
             cur.execute("""
                 SELECT reason
                 FROM breaks
-                WHERE vehicle = %s
-                  AND break_start <= %s
-                  AND (break_end IS NULL OR break_end >= %s)
+                WHERE vehicle = ?
+                  AND break_start <= ?
+                  AND (break_end IS NULL OR break_end >= ?)
                 LIMIT 1
             """, (vehicle, idle_start, idle_end))
             br = cur.fetchone()
@@ -88,9 +89,9 @@ def save_idle_report(idle_df, uploaded_by, engine):
             cur.execute("""
                 SELECT description
                 FROM pickups
-                WHERE vehicle = %s
-                  AND pickup_start <= %s
-                  AND (pickup_end IS NULL OR pickup_end >= %s)
+                WHERE vehicle = ?
+                  AND pickup_start <= ?
+                  AND (pickup_end IS NULL OR pickup_end >= ?)
                 LIMIT 1
             """, (vehicle, idle_start, idle_end))
             pk = cur.fetchone()
@@ -104,7 +105,7 @@ def save_idle_report(idle_df, uploaded_by, engine):
         try:
             cur.execute("""
                 INSERT INTO idle_reports (vehicle, idle_start, idle_end, idle_duration_min, uploaded_by, description)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (vehicle, idle_start, idle_end, idle_duration, uploaded_by, description))
             saved_count += 1
         except Exception as e:
@@ -126,11 +127,11 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
     idle_query = """
         SELECT id, vehicle, idle_start, idle_end, idle_duration_min, description, location_address
         FROM idle_reports
-        WHERE idle_start::date BETWEEN %s AND %s
+        WHERE DATE(idle_start) BETWEEN ? AND ?
     """
     params = (week_start, week_end)
     if contractor_id:
-        idle_query += " AND contractor_id = %s"
+        idle_query += " AND contractor_id = ?"
         params += (contractor_id,)
     idle_df = pd.read_sql_query(idle_query, engine, params=params)
 
@@ -151,16 +152,16 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
     inc_params = (week_start, week_end)
     br_params = (week_start, week_end)
     pk_params = (week_start, week_end)
-    inc_query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN %s AND %s"
-    br_query = "SELECT * FROM breaks WHERE break_date BETWEEN %s AND %s"
-    pk_query = "SELECT * FROM pickups WHERE pickup_start::date BETWEEN %s AND %s"
+    inc_query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ?"
+    br_query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
+    pk_query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
     if contractor_id:
-        inc_query += " AND contractor_id = %s"
+        inc_query += " AND contractor_id = ?"
         inc_params += (contractor_id,)
-        br_query += " AND contractor = %s"
-        br_params += (contractor_name,)  # Use contractor name for breaks
-        pk_query += " AND contractor = %s"
-        pk_params += (contractor_name,)  # Use contractor name for pickups
+        br_query += " AND contractor_id = ?"
+        br_params += (contractor_id,)  # Use contractor ID for breaks
+        pk_query += " AND contractor_id = ?"
+        pk_params += (contractor_id,)  # Use contractor ID for pickups
     incidents_df = pd.read_sql_query(inc_query, engine, params=inc_params)
     breaks_df = pd.read_sql_query(br_query, engine, params=br_params)
     pickups_df = pd.read_sql_query(pk_query, engine, params=pk_params)
@@ -361,9 +362,9 @@ def report_search_page():
 
     # Get available date range
     try:
-        date_query = "SELECT MIN(idle_start)::date as min_date, MAX(idle_start)::date as max_date FROM idle_reports"
+        date_query = "SELECT DATE(MIN(idle_start)) as min_date, DATE(MAX(idle_start)) as max_date FROM idle_reports"
         if contractor_id:
-            date_query += " WHERE contractor_id = %s"
+            date_query += " WHERE contractor_id = ?"
             date_df = pd.read_sql_query(date_query, engine, params=(contractor_id,))
         else:
             date_df = pd.read_sql_query(date_query, engine)
@@ -383,7 +384,7 @@ def report_search_page():
 
     # Get available vehicles (normalized license plates)
     if contractor_id:
-        vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = %s"
+        vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = ?"
         vehicle_options_df = pd.read_sql_query(vehicle_options_query, engine, params=(contractor_id,))
     else:
         vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports"
@@ -430,7 +431,7 @@ def report_search_page():
         period_name = f"{start_date.strftime('%Y-%m-%d')}_to_{period_end.strftime('%Y-%m-%d')}"
         output = io.BytesIO()
         # Get list of all unique license plates for the contractor (normalized)
-        vehicle_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = %s"
+        vehicle_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = ?"
         params = (contractor_id,)
         vehicles_df = pd.read_sql_query(vehicle_query, engine, params=params)
 
@@ -649,31 +650,31 @@ def search_page():
     if st.button("Search"):
         engine = get_sqlalchemy_engine()
         if selected_option == "Accidents":
-            query = "SELECT * FROM accidents WHERE accident_date BETWEEN %s AND %s"
+            query = "SELECT * FROM accidents WHERE accident_date BETWEEN ? AND ?"
             params = (start_date, end_date)
             if vehicle:
-                query += " AND vehicle = %s"
+                query += " AND vehicle = ?"
                 params += (vehicle,)
             df = pd.read_sql_query(query, engine, params=params)
         elif selected_option == "Incidents":
-            query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN %s AND %s"
+            query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ?"
             params = (start_date, end_date)
             if vehicle:
-                query += " AND patrol_car = %s"
+                query += " AND patrol_car = ?"
                 params += (vehicle,)
             df = pd.read_sql_query(query, engine, params=params)
         elif selected_option == "Breaks":
-            query = "SELECT * FROM breaks WHERE break_date BETWEEN %s AND %s"
+            query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
             params = (start_date, end_date)
             if vehicle:
-                query += " AND vehicle = %s"
+                query += " AND vehicle = ?"
                 params += (vehicle,)
             df = pd.read_sql_query(query, engine, params=params)
         elif selected_option == "Pickups":
-            query = "SELECT * FROM pickups WHERE pickup_start::date BETWEEN %s AND %s"
+            query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
             params = (start_date, end_date)
             if vehicle:
-                query += " AND vehicle = %s"
+                query += " AND vehicle = ?"
                 params += (vehicle,)
             df = pd.read_sql_query(query, engine, params=params)
         else:

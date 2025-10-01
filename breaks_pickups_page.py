@@ -105,21 +105,23 @@ def breaks_pickups_page():
 
         break_submit = st.form_submit_button("Save Break")
         if break_submit:
+            from db_utils import get_contractor_id
+            contractor_id = get_contractor_id(contractor)
+
             engine = get_sqlalchemy_engine()
             with engine.begin() as conn:
                 conn.execute(
                     text("""
-                        INSERT INTO breaks (vehicle, driver, reason, break_start, break_end, break_date, contractor)
-                        VALUES (:vehicle, :driver, :reason, :break_start, :break_end, :break_date, :contractor)
+                        INSERT INTO breaks (vehicle, reason, break_start, break_end, break_date, contractor_id)
+                        VALUES (:vehicle, :reason, :break_start, :break_end, :break_date, :contractor_id)
                     """),
                     {
                         "vehicle": break_vehicle,
-                        "driver": break_driver,
                         "reason": break_reason,
                         "break_start": break_start,
                         "break_end": break_end,
                         "break_date": break_date,
-                        "contractor": contractor
+                        "contractor_id": contractor_id
                     }
                 )
             st.success("✅ Break record saved!")
@@ -141,25 +143,28 @@ def breaks_pickups_page():
 
         pickup_submit = st.form_submit_button("Save Pickup")
         if pickup_submit:
+            from db_utils import get_contractor_id
+            contractor_id = get_contractor_id(contractor)
+
             engine = get_sqlalchemy_engine()
             with engine.begin() as conn:
                 result = conn.execute(
                     text("""
-                        INSERT INTO pickups (vehicle, driver, description, pickup_start, pickup_end, pickup_date, contractor)
-                        VALUES (:vehicle, :driver, :description, :pickup_start, :pickup_end, :pickup_date, :contractor)
-                        RETURNING id
+                        INSERT INTO pickups (vehicle, description, pickup_start, pickup_end, pickup_date, contractor_id)
+                        VALUES (:vehicle, :description, :pickup_start, :pickup_end, :pickup_date, :contractor_id)
                     """),
                     {
                         "vehicle": pickup_vehicle,
-                        "driver": pickup_driver,
                         "description": pickup_description,
                         "pickup_start": pickup_start,
                         "pickup_end": pickup_end,
                         "pickup_date": pickup_date,
-                        "contractor": contractor
+                        "contractor_id": contractor_id
                     }
                 )
-                pickup_id = result.scalar()
+                # For SQLite, get the last inserted row id
+                result = conn.execute(text("SELECT last_insert_rowid()"))
+                pickup_id = result.fetchone()[0]
 
             if pickup_photo:
                 photo_bytes = pickup_photo.read()
@@ -182,17 +187,20 @@ def breaks_pickups_page():
     if st.button("🔍 View Combined Report"):
         engine = get_sqlalchemy_engine()
 
+        from db_utils import get_contractor_id
+        contractor_id = get_contractor_id(contractor)
+
         pickup_query = text("""
             SELECT *
             FROM pickups
             WHERE vehicle = :vehicle
-            AND contractor = :contractor
+            AND contractor_id = :contractor_id
             AND pickup_date BETWEEN :week_start AND :week_end
             ORDER BY pickup_date DESC
         """)
         pickups_df = pd.read_sql_query(pickup_query, engine, params={
             "vehicle": vehicle_filter,
-            "contractor": contractor,
+            "contractor_id": contractor_id,
             "week_start": week_start,
             "week_end": week_end
         })
@@ -201,13 +209,13 @@ def breaks_pickups_page():
             SELECT *
             FROM breaks
             WHERE vehicle = :vehicle
-            AND contractor = :contractor
+            AND contractor_id = :contractor_id
             AND break_date BETWEEN :week_start AND :week_end
             ORDER BY break_date DESC
         """)
         breaks_df = pd.read_sql_query(break_query, engine, params={
             "vehicle": vehicle_filter,
-            "contractor": contractor,
+            "contractor_id": contractor_id,
             "week_start": week_start,
             "week_end": week_end
         })
@@ -239,6 +247,9 @@ def breaks_pickups_page():
             st.info("No breaks or pickups found for the selected filters.")
 
     # ---------------- Live Map ----------------
+    # Live GPS tracking is not available in this version
+    # Vehicle locations are only available from uploaded idle/parking reports
     st.subheader("🗺️ Live Vehicle Map")
-    refresh_sec = st.slider("Map refresh interval (seconds)", 1, 30, 5)
-    show_live_map_for_contractor(refresh_interval=refresh_sec*1000)
+    st.info("🚫 Live GPS tracking is not available in this version. Vehicle locations are only available from uploaded idle/parking reports.")
+    # refresh_sec = st.slider("Map refresh interval (seconds)", 1, 30, 5)
+    # show_live_map_for_contractor(refresh_interval=refresh_sec*1000)

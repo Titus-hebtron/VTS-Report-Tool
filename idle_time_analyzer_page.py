@@ -28,26 +28,40 @@ except ImportError:
         return f"{lat}, {lon}"
 
 def extract_license_plate(vehicle_string):
-    """Extract license plate from vehicle string that may contain contractor name"""
+    """Extract standardized license plate from vehicle string, normalizing variations"""
     if not vehicle_string or vehicle_string.lower() in ['unknown', 'unknown vehicle', '']:
         return None
 
-    vehicle_string = vehicle_string.strip()
+    # Clean the string: remove extra whitespace, newlines, tabs, quotes, and special chars
+    vehicle_string = re.sub(r'[\s\t\n\r"\'-]+', ' ', vehicle_string.strip())
 
-    # Pattern for Kenyan license plates (e.g., KDG 320Z, KDK 825Y, KDS 374F)
-    # Typically: 3 letters, space, 3-4 digits/alphanumerics
-    plate_pattern = re.match(r'^([A-Z]{3}\s*\d{1,4}[A-Z]*)\s*(.*)', vehicle_string.upper())
-
+    # Primary pattern: 3 letters + space + 3-4 digits + optional letter (e.g., "KDK 825Y")
+    plate_pattern = re.search(r'\b([A-Z]{3}\s+\d{3,4}[A-Z]?)\b', vehicle_string.upper())
     if plate_pattern:
-        return plate_pattern.group(1).replace(' ', '')  # Remove spaces from plate
+        plate = plate_pattern.group(1)
+        # Normalize spacing (ensure single space between letters and numbers)
+        plate = re.sub(r'\s+', ' ', plate)
+        return plate
 
-    # Fallback: try to find any license plate-like pattern
-    fallback_pattern = re.search(r'([A-Z]{2,4}\s*\d{1,4}[A-Z]*)', vehicle_string.upper())
+    # Secondary pattern: 3 letters + 3-4 digits + optional letter (no space, may have company name after)
+    # This handles cases like "KDG320ZWIZPROENTERPRISESLTD" -> "KDG320Z"
+    compact_pattern = re.search(r'\b([A-Z]{3}\d{3,4}[A-Z]?)(?:[A-Z]*)*\b', vehicle_string.upper())
+    if compact_pattern:
+        plate = compact_pattern.group(1)
+        # Add space between letters and numbers for consistency
+        plate = re.sub(r'([A-Z]{3})(\d)', r'\1 \2', plate)
+        return plate
+
+    # Fallback: any license plate-like pattern
+    fallback_pattern = re.search(r'\b([A-Z]{2,4}\s*\d{1,4}[A-Z]*)\b', vehicle_string.upper())
     if fallback_pattern:
-        return fallback_pattern.group(1).replace(' ', '')
+        plate = fallback_pattern.group(1)
+        # Normalize spacing
+        plate = re.sub(r'\s+', ' ', plate).strip()
+        return plate
 
-    # If no pattern matches, return the whole string as potential plate
-    return vehicle_string.replace(' ', '').upper()
+    # Last resort: clean and return as-is
+    return re.sub(r'[^\w]', '', vehicle_string.upper())
 
 def clean_location_address(address_string):
     """Clean HTML-formatted location addresses to extract readable address only"""
@@ -1365,17 +1379,28 @@ def view_idle_reports_page():
             selected_norm = selected_vehicle.strip().upper().rstrip('-')
             df = df[df['vehicle'].str.strip().str.upper().apply(lambda v: v.rstrip('-')) == selected_norm]
 
-    date_min = df['idle_start'].min()
-    date_max = df['idle_start'].max()
-    if pd.isna(date_min) or pd.isna(date_max):
-        st.warning("No idle start dates available to filter.")
+    # Ensure idle_start is datetime type and handle mixed data types
+    df['idle_start'] = pd.to_datetime(df['idle_start'], errors='coerce')
+
+    # Filter out rows where idle_start is NaT (invalid dates)
+    df = df.dropna(subset=['idle_start'])
+
+    if df.empty:
+        st.warning("No valid idle start dates available to filter.")
         date_range = []
     else:
-        date_range = st.date_input("Idle Start Date Range", [date_min, date_max], key="date_range")
-        if date_range and len(date_range) == 2:
-            df = df[(df['idle_start'] >= pd.to_datetime(date_range[0])) & (df['idle_start'] <= pd.to_datetime(date_range[1]))]
+        date_min = df['idle_start'].min()
+        date_max = df['idle_start'].max()
+
+        if pd.isna(date_min) or pd.isna(date_max):
+            st.warning("No idle start dates available to filter.")
+            date_range = []
         else:
-            st.warning("Please select a valid date range to filter reports.")
+            date_range = st.date_input("Idle Start Date Range", [date_min, date_max], key="date_range")
+            if date_range and len(date_range) == 2:
+                df = df[(df['idle_start'] >= pd.to_datetime(date_range[0])) & (df['idle_start'] <= pd.to_datetime(date_range[1]))]
+            else:
+                st.warning("Please select a valid date range to filter reports.")
 
     # Delete
     delete_ids = st.multiselect("Select rows to delete (by ID)", df['id'], key="delete_ids")

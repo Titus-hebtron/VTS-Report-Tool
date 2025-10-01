@@ -92,7 +92,7 @@ def get_patrol_logs(vehicle_id: int, user: dict = Depends(verify_token)):
     logs_query = """
         SELECT timestamp, latitude, longitude, activity
         FROM patrol_logs
-        WHERE vehicle_id = %(vehicle_id)s
+        WHERE vehicle_id = :vehicle_id
         ORDER BY timestamp DESC
     """
     with engine.begin() as conn:

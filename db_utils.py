@@ -8,8 +8,8 @@ from datetime import datetime
 import os
 
 # ------------------- DATABASE CONFIG -------------------
-# Use SQLite (works on Streamlit Cloud), set USE_SQLITE=false to use PostgreSQL
-USE_SQLITE = os.getenv("USE_SQLITE", "true").lower() == "true"
+# Force SQLite for Streamlit Cloud compatibility
+USE_SQLITE = True  # Always use SQLite for Streamlit Cloud
 
 if USE_SQLITE:
     engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})

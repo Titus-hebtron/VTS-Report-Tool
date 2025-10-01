@@ -18,6 +18,26 @@ CREATE TABLE IF NOT EXISTS contractors (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Vehicles table
+CREATE TABLE IF NOT EXISTS vehicles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    plate_number TEXT NOT NULL,
+    contractor TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Patrol logs table
+CREATE TABLE IF NOT EXISTS patrol_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    vehicle_id INTEGER,
+    timestamp DATETIME,
+    latitude REAL,
+    longitude REAL,
+    activity TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+);
+
 -- Incident reports table
 CREATE TABLE IF NOT EXISTS incident_reports (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +127,45 @@ CREATE TABLE IF NOT EXISTS accidents (
     description TEXT,
     contractor_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Accident reports data table
+CREATE TABLE IF NOT EXISTS accident_reports_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    incident_date DATE,
+    incident_time TIME,
+    caller TEXT,
+    phone_number TEXT,
+    location TEXT,
+    bound TEXT,
+    chainage TEXT,
+    num_vehicles INTEGER,
+    vehicle_type TEXT,
+    vehicle_condition TEXT,
+    num_injured INTEGER,
+    cond_injured TEXT,
+    injured_part TEXT,
+    fire_hazard INTEGER,
+    oil_leakage INTEGER,
+    chemical_leakage INTEGER,
+    damage_road_furniture INTEGER,
+    response_time DATETIME,
+    clearing_time DATETIME,
+    department_contact TEXT,
+    description TEXT,
+    patrol_car TEXT,
+    incident_type TEXT,
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Accident reports images table
+CREATE TABLE IF NOT EXISTS accident_reports_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    image_name TEXT,
+    sheet_name TEXT,
+    anchor_cell TEXT,
+    file_path TEXT,
+    upload_date DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insert default contractors (only if table is empty)
