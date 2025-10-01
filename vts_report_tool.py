@@ -26,11 +26,14 @@ def init_database_if_needed():
 
     engine = get_sqlalchemy_engine()
 
-    # Check if users table exists
+    # Initialize database tables and data
     try:
         with engine.begin() as conn:
+            # Check if users table exists
             result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
-            if not result.fetchone():
+            table_exists = result.fetchone() is not None
+
+            if not table_exists:
                 # Tables don't exist, initialize database
                 st.info("🔄 Initializing database...")
 
@@ -51,17 +54,18 @@ def init_database_if_needed():
                 add_user('paschal_user', 'Pass@12345', 'Paschal User', contractor_id=2, role='contractor')
                 add_user('avators_user', 'Pass@12345', 'Avators User', contractor_id=4, role='contractor')
 
-                # Add sample vehicles
-                vehicles = [
-                    ('KDG 320Z', 'Wizpro'), ('KDS 374F', 'Wizpro'), ('KDK 825Y', 'Wizpro'), ('Replacement Car', 'Wizpro'),
-                    ('KDC 873G', 'Paschal'), ('KDD 500X', 'Paschal'), ('Replacement Car', 'Paschal'),
-                    ('KAV 444A', 'Avators'), ('KAV 555A', 'Avators'), ('KAV 666A', 'Avators'), ('Replacement Car', 'Avators')
-                ]
-                for plate_number, contractor in vehicles:
-                    conn.execute(text("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)"),
-                               (plate_number, contractor))
-
                 st.success("✅ Database initialized successfully!")
+
+            # Always ensure vehicles exist (in case they were deleted or missing)
+            vehicles = [
+                ('KDG 320Z', 'Wizpro'), ('KDS 374F', 'Wizpro'), ('KDK 825Y', 'Wizpro'), ('Replacement Car', 'Wizpro'),
+                ('KDC 873G', 'Paschal'), ('KDD 500X', 'Paschal'), ('Replacement Car', 'Paschal'),
+                ('KAV 444A', 'Avators'), ('KAV 555A', 'Avators'), ('KAV 666A', 'Avators'), ('Replacement Car', 'Avators')
+            ]
+            for plate_number, contractor in vehicles:
+                conn.execute(text("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)"),
+                           (plate_number, contractor))
+
     except Exception as e:
         st.error(f"❌ Database initialization failed: {e}")
 
