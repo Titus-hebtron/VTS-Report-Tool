@@ -65,7 +65,6 @@ def init_database_if_needed():
 
 # Initialize database on app startup
 init_database_if_needed()
-)
 
 # PWA Support - Add manifest, meta tags, and service worker
 st.markdown("""
