@@ -38,7 +38,9 @@ def init_database_if_needed():
                     sql = f.read()
 
                 # Execute schema using executescript for multiple statements
-                conn.executescript(sql)
+                cursor = conn.connection.cursor()
+                cursor.executescript(sql)
+                cursor.close()
 
                 # Add default contractors
                 from db_utils import add_user
