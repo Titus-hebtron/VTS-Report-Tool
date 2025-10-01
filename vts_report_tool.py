@@ -67,6 +67,22 @@ def init_database_if_needed():
             for plate_number, contractor in vehicles:
                 cursor.execute("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)",
                              (plate_number, contractor))
+
+            # Add sample idle reports for testing
+            idle_reports = [
+                ('KDG 320Z', '2024-10-01 08:00:00', '2024-10-01 08:30:00', 30.0, 'Nairobi CBD', -1.2864, 36.8172, 'Traffic congestion', 'admin', 1),
+                ('KDS 374F', '2024-10-01 09:15:00', '2024-10-01 09:45:00', 30.0, 'Westlands', -1.2630, 36.8065, 'Waiting for client', 'admin', 1),
+                ('KDC 873G', '2024-10-01 10:00:00', '2024-10-01 10:20:00', 20.0, 'Kilimani', -1.2910, 36.7844, 'Break time', 'admin', 2),
+                ('KDD 500X', '2024-10-01 11:30:00', '2024-10-01 12:00:00', 30.0, 'Karen', -1.3168, 36.7073, 'Lunch break', 'admin', 2),
+                ('KAV 444A', '2024-10-01 14:00:00', '2024-10-01 14:25:00', 25.0, 'Parklands', -1.2640, 36.8261, 'Vehicle maintenance', 'admin', 4),
+            ]
+            for vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id in idle_reports:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO idle_reports
+                    (vehicle, idle_start, idle_end, idle_duration_min, location_address, latitude, longitude, description, uploaded_by, contractor_id, uploaded_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """, (vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id))
+
             cursor.close()
 
     except Exception as e:
