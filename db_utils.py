@@ -219,6 +219,7 @@ def save_idle_report(idle_df, uploaded_by):
 def get_idle_reports(limit=100):
     """Fetch idle reports"""
     contractor_id = get_active_contractor()
+    engine = get_sqlalchemy_engine()
 
     query = """
         SELECT id, vehicle, idle_start, idle_end, idle_duration_min,
@@ -226,15 +227,21 @@ def get_idle_reports(limit=100):
                uploaded_by, uploaded_at, contractor_id
         FROM idle_reports
     """
-    params = {"limit": limit}
+    params = [limit]  # Use list for positional parameters
 
     if contractor_id:
-        query += " WHERE contractor_id = :contractor_id"
-        params["contractor_id"] = contractor_id
+        query += " WHERE contractor_id = ?"
+        params.insert(0, contractor_id)  # Insert contractor_id at beginning
 
-    query += " ORDER BY uploaded_at DESC LIMIT :limit"
+    query += " ORDER BY uploaded_at DESC LIMIT ?"
 
-    df = pd.read_sql_query(text(query), engine, params=params)
+    # Use raw connection to avoid SQLAlchemy parameter issues
+    conn = engine.raw_connection()
+    try:
+        df = pd.read_sql_query(query, conn, params=params)
+    finally:
+        conn.close()
+
     return df
 # -------------------------------------------------------
 
