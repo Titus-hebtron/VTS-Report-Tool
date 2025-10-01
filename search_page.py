@@ -39,7 +39,9 @@ def search_page():
 
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
-                df = pd.read_sql_query(query, engine, params=params)
+                conn = engine.raw_connection()
+                df = pd.read_sql_query(query, conn, params=params)
+                conn.close()
             except Exception as e:
                 st.error(f"Database error fetching incident data: {e}")
 
@@ -57,30 +59,36 @@ def search_page():
 
                 try:
                     # Fetching the BLOB data is slow but necessary for embedding
-                    image_df = pd.read_sql_query(image_query, engine, params=report_ids)
+                    conn = engine.raw_connection()
+                    image_df = pd.read_sql_query(image_query, conn, params=report_ids)
+                    conn.close()
                     st.success(f"Found {len(df)} reports and {len(image_df)} associated images.")
                 except Exception as e:
                     st.warning(f"Could not fetch image data from incident_images table: {e}. Download will be data-only.")
 
         elif selected_option == "Breaks":
             query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
-            params = (start_date, end_date)
+            params = [start_date, end_date]
             if vehicle:
                 query += " AND vehicle = ?"
-                params = params + (vehicle,)
+                params.append(vehicle)
             try:
-                df = pd.read_sql_query(query, engine, params=params)
+                conn = engine.raw_connection()
+                df = pd.read_sql_query(query, conn, params=params)
+                conn.close()
             except Exception as e:
                 st.error(f"Database error fetching breaks data: {e}")
 
         elif selected_option == "Pickups":
             query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
-            params = (start_date, end_date)
+            params = [start_date, end_date]
             if vehicle:
                 query += " AND vehicle = ?"
-                params = params + (vehicle,)
+                params.append(vehicle)
             try:
-                df = pd.read_sql_query(query, engine, params=params)
+                conn = engine.raw_connection()
+                df = pd.read_sql_query(query, conn, params=params)
+                conn.close()
             except Exception as e:
                 st.error(f"Database error fetching pickups data: {e}")
 
