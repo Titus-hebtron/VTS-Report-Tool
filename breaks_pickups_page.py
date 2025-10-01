@@ -190,35 +190,31 @@ def breaks_pickups_page():
         from db_utils import get_contractor_id
         contractor_id = get_contractor_id(contractor)
 
-        pickup_query = text("""
+        pickup_query = """
             SELECT *
             FROM pickups
-            WHERE vehicle = :vehicle
-            AND contractor_id = :contractor_id
-            AND pickup_date BETWEEN :week_start AND :week_end
+            WHERE vehicle = ?
+            AND contractor_id = ?
+            AND pickup_date BETWEEN ? AND ?
             ORDER BY pickup_date DESC
-        """)
-        pickups_df = pd.read_sql_query(pickup_query, engine, params={
-            "vehicle": vehicle_filter,
-            "contractor_id": contractor_id,
-            "week_start": week_start,
-            "week_end": week_end
-        })
+        """
+        conn = engine.raw_connection()
+        pickups_df = pd.read_sql_query(pickup_query, conn, params=[
+            vehicle_filter, contractor_id, week_start, week_end
+        ])
 
-        break_query = text("""
+        break_query = """
             SELECT *
             FROM breaks
-            WHERE vehicle = :vehicle
-            AND contractor_id = :contractor_id
-            AND break_date BETWEEN :week_start AND :week_end
+            WHERE vehicle = ?
+            AND contractor_id = ?
+            AND break_date BETWEEN ? AND ?
             ORDER BY break_date DESC
-        """)
-        breaks_df = pd.read_sql_query(break_query, engine, params={
-            "vehicle": vehicle_filter,
-            "contractor_id": contractor_id,
-            "week_start": week_start,
-            "week_end": week_end
-        })
+        """
+        breaks_df = pd.read_sql_query(break_query, conn, params=[
+            vehicle_filter, contractor_id, week_start, week_end
+        ])
+        conn.close()
 
         if not pickups_df.empty or not breaks_df.empty:
             if not pickups_df.empty:
