@@ -463,15 +463,21 @@ def get_recent_incident_reports(limit=20):
         FROM incident_reports ir
         JOIN contractors c ON ir.contractor_id = c.id
     """
-    params = {"limit": limit}
+    params = [limit]  # Use list for positional parameters
 
     if contractor_id:
-        base_query += " WHERE ir.contractor_id = :contractor_id"
-        params["contractor_id"] = contractor_id
+        base_query += " WHERE ir.contractor_id = ?"
+        params.insert(0, contractor_id)  # Insert contractor_id at beginning
 
-    base_query += " ORDER BY ir.created_at DESC LIMIT :limit"
+    base_query += " ORDER BY ir.created_at DESC LIMIT ?"
 
-    df = pd.read_sql_query(text(base_query), engine, params=params)
+    # Use raw connection to avoid SQLAlchemy parameter issues
+    conn = engine.raw_connection()
+    try:
+        df = pd.read_sql_query(base_query, conn, params=params)
+    finally:
+        conn.close()
+
     return df
 
 def get_incident_images(report_id, only_meta=False):
