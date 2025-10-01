@@ -8,8 +8,19 @@ from datetime import datetime
 import os
 
 # ------------------- DATABASE CONFIG -------------------
-# Use SQLite (works on Streamlit Cloud)
-engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})
+# Use SQLite (works on Streamlit Cloud), set USE_SQLITE=false to use PostgreSQL
+USE_SQLITE = os.getenv("USE_SQLITE", "true").lower() == "true"
+
+if USE_SQLITE:
+    engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})
+else:
+    # PostgreSQL configuration
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = int(os.getenv("DB_PORT", 5432))
+    DB_NAME = os.getenv("DB_NAME", "postgres")
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASS = os.getenv("DB_PASS", "Hebtron123")
+    engine = create_engine(f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 def get_connection():
     return engine.raw_connection()
