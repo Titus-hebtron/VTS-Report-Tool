@@ -62,9 +62,12 @@ def init_database_if_needed():
                 ('KDC 873G', 'Paschal'), ('KDD 500X', 'Paschal'), ('Replacement Car', 'Paschal'),
                 ('KAV 444A', 'Avators'), ('KAV 555A', 'Avators'), ('KAV 666A', 'Avators'), ('Replacement Car', 'Avators')
             ]
+            # Use raw cursor for vehicle insertion to avoid SQLAlchemy parameter issues
+            cursor = conn.connection.cursor()
             for plate_number, contractor in vehicles:
-                conn.execute(text("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)"),
-                           (plate_number, contractor))
+                cursor.execute("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)",
+                             (plate_number, contractor))
+            cursor.close()
 
     except Exception as e:
         st.error(f"❌ Database initialization failed: {e}")
