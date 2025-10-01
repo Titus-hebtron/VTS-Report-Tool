@@ -90,15 +90,22 @@ if not st.session_state["login_state"]:
         password = st.text_input("Password", type="password")
 
         if st.button("Login"):
-            
+
             import bcrypt
+            from db_utils import USE_SQLITE
 
             engine = get_sqlalchemy_engine()
             conn = engine.raw_connection()
             cur = conn.cursor()
 
-            cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = %s AND u.username = %s",
-                        (contractor, username))
+            if USE_SQLITE:
+                # SQLite uses ?
+                cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = ? AND u.username = ?",
+                            (contractor, username))
+            else:
+                # PostgreSQL uses %s
+                cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = %s AND u.username = %s",
+                            (contractor, username))
             user = cur.fetchone()
 
             cur.close()
@@ -486,7 +493,7 @@ if selected_vehicle:
         logs_query = """
             SELECT timestamp, latitude, longitude, activity
             FROM patrol_logs
-            WHERE vehicle_id = %(vehicle_id)s
+            WHERE vehicle_id = :vehicle_id
             ORDER BY timestamp DESC
         """
         with engine.begin() as conn:
