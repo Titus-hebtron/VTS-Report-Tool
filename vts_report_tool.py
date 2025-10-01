@@ -316,19 +316,14 @@ if st.sidebar.button("🚪 Logout"):
 # ---- FETCH VEHICLES ----
 def get_vehicles_for_contractor(contractor):
     engine = get_sqlalchemy_engine()
-    conn = engine.raw_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute("""
+    with engine.connect() as conn:
+        result = conn.execute(text("""
             SELECT id, plate_number
             FROM vehicles
-            WHERE contractor = ?
+            WHERE contractor = :contractor
             ORDER BY plate_number
-        """, (contractor,))
-        rows = cur.fetchall()
-        return [{"id": row[0], "plate_number": row[1]} for row in rows]
-    finally:
-        conn.close()
+        """), {"contractor": contractor})
+        return [{"id": row[0], "plate_number": row[1]} for row in result.fetchall()]
 
 # Web App Download Section
 if st.session_state.get("show_web_download", False):

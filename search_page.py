@@ -39,9 +39,8 @@ def search_page():
 
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
-                conn = engine.raw_connection()
-                df = pd.read_sql_query(query, conn, params=params)
-                conn.close()
+                with engine.connect() as conn:
+                    df = pd.read_sql_query(query, conn, params=params)
             except Exception as e:
                 st.error(f"Database error fetching incident data: {e}")
 
@@ -59,9 +58,8 @@ def search_page():
 
                 try:
                     # Fetching the BLOB data is slow but necessary for embedding
-                    conn = engine.raw_connection()
-                    image_df = pd.read_sql_query(image_query, conn, params=report_ids)
-                    conn.close()
+                    with engine.connect() as conn:
+                        image_df = pd.read_sql_query(image_query, conn, params=report_ids)
                     st.success(f"Found {len(df)} reports and {len(image_df)} associated images.")
                 except Exception as e:
                     st.warning(f"Could not fetch image data from incident_images table: {e}. Download will be data-only.")
@@ -73,9 +71,8 @@ def search_page():
                 query += " AND vehicle = ?"
                 params.append(vehicle)
             try:
-                conn = engine.raw_connection()
-                df = pd.read_sql_query(query, conn, params=params)
-                conn.close()
+                with engine.connect() as conn:
+                    df = pd.read_sql_query(query, conn, params=params)
             except Exception as e:
                 st.error(f"Database error fetching breaks data: {e}")
 
@@ -86,9 +83,8 @@ def search_page():
                 query += " AND vehicle = ?"
                 params.append(vehicle)
             try:
-                conn = engine.raw_connection()
-                df = pd.read_sql_query(query, conn, params=params)
-                conn.close()
+                with engine.connect() as conn:
+                    df = pd.read_sql_query(query, conn, params=params)
             except Exception as e:
                 st.error(f"Database error fetching pickups data: {e}")
 

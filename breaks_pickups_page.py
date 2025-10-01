@@ -198,23 +198,22 @@ def breaks_pickups_page():
             AND pickup_date BETWEEN ? AND ?
             ORDER BY pickup_date DESC
         """
-        conn = engine.raw_connection()
-        pickups_df = pd.read_sql_query(pickup_query, conn, params=[
-            vehicle_filter, contractor_id, week_start, week_end
-        ])
+        with engine.connect() as conn:
+            pickups_df = pd.read_sql_query(pickup_query, conn, params=[
+                vehicle_filter, contractor_id, week_start, week_end
+            ])
 
-        break_query = """
-            SELECT *
-            FROM breaks
-            WHERE vehicle = ?
-            AND contractor_id = ?
-            AND break_date BETWEEN ? AND ?
-            ORDER BY break_date DESC
-        """
-        breaks_df = pd.read_sql_query(break_query, conn, params=[
-            vehicle_filter, contractor_id, week_start, week_end
-        ])
-        conn.close()
+            break_query = """
+                SELECT *
+                FROM breaks
+                WHERE vehicle = ?
+                AND contractor_id = ?
+                AND break_date BETWEEN ? AND ?
+                ORDER BY break_date DESC
+            """
+            breaks_df = pd.read_sql_query(break_query, conn, params=[
+                vehicle_filter, contractor_id, week_start, week_end
+            ])
 
         if not pickups_df.empty or not breaks_df.empty:
             if not pickups_df.empty:

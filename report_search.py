@@ -133,9 +133,8 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
     if contractor_id:
         idle_query += " AND contractor_id = ?"
         params += (contractor_id,)
-    conn = engine.raw_connection()
-    idle_df = pd.read_sql_query(idle_query, conn, params=params)
-    conn.close()
+    with engine.connect() as conn:
+        idle_df = pd.read_sql_query(idle_query, conn, params=params)
 
     # Filter for idle periods over 10 minutes
     idle_df = idle_df[idle_df['idle_duration_min'] > 10]
@@ -164,11 +163,10 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
         br_params += (contractor_id,)  # Use contractor ID for breaks
         pk_query += " AND contractor_id = ?"
         pk_params += (contractor_id,)  # Use contractor ID for pickups
-    conn = engine.raw_connection()
-    incidents_df = pd.read_sql_query(inc_query, conn, params=inc_params)
-    breaks_df = pd.read_sql_query(br_query, conn, params=br_params)
-    pickups_df = pd.read_sql_query(pk_query, conn, params=pk_params)
-    conn.close()
+    with engine.connect() as conn:
+        incidents_df = pd.read_sql_query(inc_query, conn, params=inc_params)
+        breaks_df = pd.read_sql_query(br_query, conn, params=br_params)
+        pickups_df = pd.read_sql_query(pk_query, conn, params=pk_params)
 
     # --- FILTER BY VEHICLE ---
     if vehicle != "All":
@@ -356,9 +354,8 @@ def report_search_page():
 
     # Get contractors for selection
     contractor_query = "SELECT DISTINCT contractor_id FROM idle_reports WHERE contractor_id IS NOT NULL ORDER BY contractor_id"
-    conn = engine.raw_connection()
-    contractor_df = pd.read_sql_query(contractor_query, conn)
-    conn.close()
+    with engine.connect() as conn:
+        contractor_df = pd.read_sql_query(contractor_query, conn)
     contractor_options = contractor_df['contractor_id'].tolist()
     if not contractor_options:
         st.error("No contractors found.")
@@ -369,13 +366,12 @@ def report_search_page():
     # Get available date range
     try:
         date_query = "SELECT DATE(MIN(idle_start)) as min_date, DATE(MAX(idle_start)) as max_date FROM idle_reports"
-        conn = engine.raw_connection()
-        if contractor_id:
-            date_query += " WHERE contractor_id = ?"
-            date_df = pd.read_sql_query(date_query, conn, params=(contractor_id,))
-        else:
-            date_df = pd.read_sql_query(date_query, conn)
-        conn.close()
+        with engine.connect() as conn:
+            if contractor_id:
+                date_query += " WHERE contractor_id = ?"
+                date_df = pd.read_sql_query(date_query, conn, params=(contractor_id,))
+            else:
+                date_df = pd.read_sql_query(date_query, conn)
         if not date_df.empty and date_df.iloc[0]['min_date'] is not None:
             min_date = date_df.iloc[0]['min_date']
             max_date = date_df.iloc[0]['max_date']
@@ -391,14 +387,13 @@ def report_search_page():
     week_end = st.date_input("Select week end date")
 
     # Get available vehicles (normalized license plates)
-    conn = engine.raw_connection()
-    if contractor_id:
-        vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = ?"
-        vehicle_options_df = pd.read_sql_query(vehicle_options_query, conn, params=(contractor_id,))
-    else:
-        vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports"
-        vehicle_options_df = pd.read_sql_query(vehicle_options_query, conn)
-    conn.close()
+    with engine.connect() as conn:
+        if contractor_id:
+            vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = ?"
+            vehicle_options_df = pd.read_sql_query(vehicle_options_query, conn, params=(contractor_id,))
+        else:
+            vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports"
+            vehicle_options_df = pd.read_sql_query(vehicle_options_query, conn)
 
     # Normalize vehicle names to license plates for consistent grouping
     vehicle_options_df['normalized_plate'] = vehicle_options_df['vehicle'].apply(extract_license_plate)
@@ -443,9 +438,8 @@ def report_search_page():
         # Get list of all unique license plates for the contractor (normalized)
         vehicle_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = ?"
         params = (contractor_id,)
-        conn = engine.raw_connection()
-        vehicles_df = pd.read_sql_query(vehicle_query, conn, params=params)
-        conn.close()
+        with engine.connect() as conn:
+            vehicles_df = pd.read_sql_query(vehicle_query, conn, params=params)
 
         # Normalize to license plates and get unique ones
         vehicles_df['normalized_plate'] = vehicles_df['vehicle'].apply(extract_license_plate)
@@ -661,36 +655,37 @@ def search_page():
 
     if st.button("Search"):
         engine = get_sqlalchemy_engine()
-        conn = engine.raw_connection()
-        if selected_option == "Accidents":
-            query = "SELECT * FROM accidents WHERE accident_date BETWEEN ? AND ?"
-            params = [start_date, end_date]
-            if vehicle:
-                query += " AND vehicle = ?"
-                params.append(vehicle)
-            df = pd.read_sql_query(query, conn, params=params)
-        elif selected_option == "Incidents":
-            query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ?"
-            params = [start_date, end_date]
-            if vehicle:
-                query += " AND patrol_car = ?"
-                params.append(vehicle)
-            df = pd.read_sql_query(query, conn, params=params)
-        elif selected_option == "Breaks":
-            query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
-            params = [start_date, end_date]
-            if vehicle:
-                query += " AND vehicle = ?"
-                params.append(vehicle)
-            df = pd.read_sql_query(query, conn, params=params)
-        elif selected_option == "Pickups":
-            query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
-            params = [start_date, end_date]
-            if vehicle:
-                query += " AND vehicle = ?"
-                params.append(vehicle)
-            df = pd.read_sql_query(query, conn, params=params)
-        conn.close()
+        with engine.connect() as conn:
+            if selected_option == "Accidents":
+                query = "SELECT * FROM accidents WHERE accident_date BETWEEN ? AND ?"
+                params = [start_date, end_date]
+                if vehicle:
+                    query += " AND vehicle = ?"
+                    params.append(vehicle)
+                df = pd.read_sql_query(query, conn, params=params)
+            elif selected_option == "Incidents":
+                query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ?"
+                params = [start_date, end_date]
+                if vehicle:
+                    query += " AND patrol_car = ?"
+                    params.append(vehicle)
+                df = pd.read_sql_query(query, conn, params=params)
+            elif selected_option == "Breaks":
+                query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
+                params = [start_date, end_date]
+                if vehicle:
+                    query += " AND vehicle = ?"
+                    params.append(vehicle)
+                df = pd.read_sql_query(query, conn, params=params)
+            elif selected_option == "Pickups":
+                query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
+                params = [start_date, end_date]
+                if vehicle:
+                    query += " AND vehicle = ?"
+                    params.append(vehicle)
+                df = pd.read_sql_query(query, conn, params=params)
+            else:
+                df = pd.DataFrame()
     else:
         df = pd.DataFrame()
 
