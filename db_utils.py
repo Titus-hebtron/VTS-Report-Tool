@@ -173,24 +173,6 @@ def save_incident_image(incident_id, image_bytes, image_name):
             "image_name": image_name
         })
 
-def get_recent_incident_reports(limit=20):
-    contractor_id = get_active_contractor()
-
-    base_query = """
-        SELECT ir.*, c.name AS contractor_name
-        FROM incident_reports ir
-        JOIN contractors c ON ir.contractor_id = c.id
-    """
-    params = {"limit": limit}
-
-    if contractor_id:
-        base_query += " WHERE ir.contractor_id = :contractor_id"
-        params["contractor_id"] = contractor_id
-
-    base_query += " ORDER BY ir.created_at DESC LIMIT :limit"
-
-    df = pd.read_sql_query(text(base_query), engine, params=params)
-    return df
 
 def get_incident_images(report_id, only_meta=False):
     with engine.begin() as conn:
