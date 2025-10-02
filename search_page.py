@@ -225,7 +225,7 @@ def search_page():
                                             img_data_blob = img_row['image_data']
                                             img_name = img_row['image_name']
 
-                                            if not img_data_blob:
+                                            if not img_data_blob or not isinstance(img_data_blob, bytes) or len(img_data_blob) == 0:
                                                 continue
 
                                             file_ext = img_name.split('.')[-1] if '.' in img_name else 'png'
