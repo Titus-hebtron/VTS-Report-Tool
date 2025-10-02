@@ -129,7 +129,7 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
         FROM idle_reports
         WHERE DATE(idle_start) BETWEEN ? AND ?
     """
-    params = (week_start, week_end)
+    params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
     if contractor_id:
         idle_query += " AND contractor_id = ?"
         params += (contractor_id,)
@@ -150,9 +150,9 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
         return pd.DataFrame()
 
     # Get all incidents, breaks, pickups for the week
-    inc_params = (week_start, week_end)
-    br_params = (week_start, week_end)
-    pk_params = (week_start, week_end)
+    inc_params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
+    br_params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
+    pk_params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
     inc_query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ?"
     br_query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
     pk_query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
