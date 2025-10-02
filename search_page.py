@@ -188,8 +188,12 @@ def search_page():
             st.dataframe(df)
 
             # Excel Workbook Download
+            temp_dir = None
             output = BytesIO()
             try:
+                if selected_option in ["Accidents", "Incidents"] and not image_df.empty:
+                    temp_dir = tempfile.mkdtemp()
+
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
                     if selected_option in ["Accidents", "Incidents"]:
                         # Create a template sheet for each report
@@ -206,47 +210,46 @@ def search_page():
                     workbook = writer.book
 
                     # Embed images if applicable
-                    if selected_option in ["Accidents", "Incidents"] and not image_df.empty:
-                        with tempfile.TemporaryDirectory() as temp_dir:
-                            for index, row in df.iterrows():
-                                report_id = row.get('id')
-                                if report_id:
-                                    sheet_name = f"Report_{index+1}"[:31]
-                                    ws = writer.sheets[sheet_name]
+                    if selected_option in ["Accidents", "Incidents"] and not image_df.empty and temp_dir:
+                        for index, row in df.iterrows():
+                            report_id = row.get('id')
+                            if report_id:
+                                sheet_name = f"Report_{index+1}"[:31]
+                                ws = writer.sheets[sheet_name]
 
-                                    linked_images = image_df[image_df['incident_id'] == report_id]
+                                linked_images = image_df[image_df['incident_id'] == report_id]
 
-                                    if not linked_images.empty:
-                                        current_row = 19  # Below the template
-                                        ws.cell(row=current_row, column=1, value=f"--- IMAGES FOR REPORT ID: {report_id} ---").font = openpyxl.styles.Font(bold=True)
-                                        current_row += 1
+                                if not linked_images.empty:
+                                    current_row = 19  # Below the template
+                                    ws.cell(row=current_row, column=1, value=f"--- IMAGES FOR REPORT ID: {report_id} ---").font = openpyxl.styles.Font(bold=True)
+                                    current_row += 1
 
-                                        for img_index, img_row in linked_images.iterrows():
-                                            img_data_blob = img_row['image_data']
-                                            img_name = img_row['image_name']
+                                    for img_index, img_row in linked_images.iterrows():
+                                        img_data_blob = img_row['image_data']
+                                        img_name = img_row['image_name']
 
-                                            if not img_data_blob or not isinstance(img_data_blob, bytes) or len(img_data_blob) == 0:
-                                                continue
+                                        if not img_data_blob or not isinstance(img_data_blob, bytes) or len(img_data_blob) == 0:
+                                            continue
 
-                                            file_ext = img_name.split('.')[-1] if '.' in img_name else 'png'
+                                        file_ext = img_name.split('.')[-1] if '.' in img_name else 'png'
 
-                                            temp_file_path = os.path.join(temp_dir, f"{report_id}_{img_index}.{file_ext}")
-                                            try:
-                                                with open(temp_file_path, 'wb') as f:
-                                                    f.write(img_data_blob)
+                                        temp_file_path = os.path.join(temp_dir, f"{report_id}_{img_index}.{file_ext}")
+                                        try:
+                                            with open(temp_file_path, 'wb') as f:
+                                                f.write(img_data_blob)
 
-                                                img = OpenpyxlImage(temp_file_path)
-                                                img.anchor = f'A{current_row}'
-                                                img.width = 1905000
-                                                img.height = 1428750
-                                                ws.add_image(img)
+                                            img = OpenpyxlImage(temp_file_path)
+                                            img.anchor = f'A{current_row}'
+                                            img.width = 1905000
+                                            img.height = 1428750
+                                            ws.add_image(img)
 
-                                                current_row += 15
-                                            except Exception as img_e:
-                                                st.warning(f"Failed to embed image {img_name}: {img_e}")
-                                                continue
+                                            current_row += 15
+                                        except Exception as img_e:
+                                            # Skip this image and continue
+                                            continue
 
-                                        current_row += 2
+                                    current_row += 2
 
                 # --- DOWNLOAD BUTTON FOR EXCEL WORKBOOK ---
                 st.download_button(
@@ -259,6 +262,11 @@ def search_page():
             except Exception as e:
                 st.error(f"Error creating Excel workbook: {e}")
                 st.warning("Ensure all data is valid and required libraries are installed.")
+
+            # Clean up temp directory after download
+            if temp_dir:
+                import shutil
+                shutil.rmtree(temp_dir)
 
             # CSV Download
             csv = df.to_csv(index=False).encode('utf-8')
