@@ -200,26 +200,38 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
         # Incident check - vectorized
         valid_incidents = incidents_df.dropna(subset=['response_time', 'clearing_time'])
         if not valid_incidents.empty:
-            overlaps_inc = ((valid_incidents['response_time'] <= idle_end) & (valid_incidents['clearing_time'] >= idle_start)).any()
-            if overlaps_inc:
-                idle_df.at[idx, "Incident"] = duration
-                continue
+            valid_incidents['response_time'] = pd.to_datetime(valid_incidents['response_time'], errors='coerce')
+            valid_incidents['clearing_time'] = pd.to_datetime(valid_incidents['clearing_time'], errors='coerce')
+            valid_incidents = valid_incidents.dropna(subset=['response_time', 'clearing_time'])
+            if not valid_incidents.empty:
+                overlaps_inc = ((valid_incidents['response_time'] <= idle_end) & (valid_incidents['clearing_time'] >= idle_start)).any()
+                if overlaps_inc:
+                    idle_df.at[idx, "Incident"] = duration
+                    continue
 
         # Breaks check - vectorized
         valid_breaks = breaks_df.copy()
-        valid_breaks['break_end'] = valid_breaks['break_end'].fillna(pd.Timestamp.max)
-        overlaps_br = ((valid_breaks['break_start'] <= idle_end) & (valid_breaks['break_end'] >= idle_start)).any()
-        if overlaps_br:
-            idle_df.at[idx, "Breaks"] = duration
-            continue
+        valid_breaks['break_start'] = pd.to_datetime(valid_breaks['break_start'], errors='coerce')
+        valid_breaks['break_end'] = pd.to_datetime(valid_breaks['break_end'], errors='coerce')
+        valid_breaks = valid_breaks.dropna(subset=['break_start'])
+        if not valid_breaks.empty:
+            valid_breaks['break_end'] = valid_breaks['break_end'].fillna(pd.Timestamp.max)
+            overlaps_br = ((valid_breaks['break_start'] <= idle_end) & (valid_breaks['break_end'] >= idle_start)).any()
+            if overlaps_br:
+                idle_df.at[idx, "Breaks"] = duration
+                continue
 
         # Pickups check - vectorized
         valid_pickups = pickups_df.copy()
-        valid_pickups['pickup_end'] = valid_pickups['pickup_end'].fillna(pd.Timestamp.max)
-        overlaps_pk = ((valid_pickups['pickup_start'] <= idle_end) & (valid_pickups['pickup_end'] >= idle_start)).any()
-        if overlaps_pk:
-            idle_df.at[idx, "Pickups"] = duration
-            continue
+        valid_pickups['pickup_start'] = pd.to_datetime(valid_pickups['pickup_start'], errors='coerce')
+        valid_pickups['pickup_end'] = pd.to_datetime(valid_pickups['pickup_end'], errors='coerce')
+        valid_pickups = valid_pickups.dropna(subset=['pickup_start'])
+        if not valid_pickups.empty:
+            valid_pickups['pickup_end'] = valid_pickups['pickup_end'].fillna(pd.Timestamp.max)
+            overlaps_pk = ((valid_pickups['pickup_start'] <= idle_end) & (valid_pickups['pickup_end'] >= idle_start)).any()
+            if overlaps_pk:
+                idle_df.at[idx, "Pickups"] = duration
+                continue
 
         # Unjustified
         idle_df.at[idx, "Unjustified"] = duration
