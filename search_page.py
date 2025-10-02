@@ -240,8 +240,8 @@ def search_page():
 
                                             img = OpenpyxlImage(temp_file_path)
                                             img.anchor = f'A{current_row}'
-                                            img.width = 952500  # 100 pixels
-                                            img.height = 714375  # 75 pixels
+                                            img.width = 476250  # 100 pixels
+                                            img.height = 352425  # 75 pixels
                                             ws.add_image(img)
 
                                             current_row += 15
