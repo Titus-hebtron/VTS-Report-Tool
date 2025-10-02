@@ -225,19 +225,26 @@ def search_page():
                                             img_data_blob = img_row['image_data']
                                             img_name = img_row['image_name']
 
+                                            if not img_data_blob:
+                                                continue
+
                                             file_ext = img_name.split('.')[-1] if '.' in img_name else 'png'
 
                                             temp_file_path = os.path.join(temp_dir, f"{report_id}_{img_index}.{file_ext}")
-                                            with open(temp_file_path, 'wb') as f:
-                                                f.write(img_data_blob)
+                                            try:
+                                                with open(temp_file_path, 'wb') as f:
+                                                    f.write(img_data_blob)
 
-                                            img = OpenpyxlImage(temp_file_path)
-                                            img.anchor = f'A{current_row}'
-                                            img.width = 300
-                                            img.height = 200
-                                            ws.add_image(img)
+                                                img = OpenpyxlImage(temp_file_path)
+                                                img.anchor = f'A{current_row}'
+                                                img.width = 300
+                                                img.height = 200
+                                                ws.add_image(img)
 
-                                            current_row += 15
+                                                current_row += 15
+                                            except Exception as img_e:
+                                                st.warning(f"Failed to embed image {img_name}: {img_e}")
+                                                continue
 
                                         current_row += 2
 
