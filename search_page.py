@@ -126,11 +126,11 @@ def search_page():
         if selected_option in ["Accidents", "Incidents"]:
             incident_type = "Accident" if selected_option == "Accidents" else "Incident"
             query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ? AND incident_type = ?"
-            params = [start_date, end_date, incident_type]
+            params = (start_date, end_date, incident_type)
 
             if vehicle:
                 query += " AND patrol_car = ?"
-                params.append(vehicle)
+                params = params + (vehicle,)
 
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
@@ -154,17 +154,17 @@ def search_page():
                 try:
                     # Fetching the BLOB data is slow but necessary for embedding
                     with engine.connect() as conn:
-                        image_df = pd.read_sql_query(image_query, conn, params=report_ids)
+                        image_df = pd.read_sql_query(image_query, conn, params=tuple(report_ids))
                     st.success(f"Found {len(df)} reports and {len(image_df)} associated images.")
                 except Exception as e:
                     st.warning(f"Could not fetch image data from incident_images table: {e}. Download will be data-only.")
 
         elif selected_option == "Breaks":
             query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
-            params = [start_date, end_date]
+            params = (start_date, end_date)
             if vehicle:
                 query += " AND vehicle = ?"
-                params.append(vehicle)
+                params = params + (vehicle,)
             try:
                 with engine.connect() as conn:
                     df = pd.read_sql_query(query, conn, params=params)
@@ -173,10 +173,10 @@ def search_page():
 
         elif selected_option == "Pickups":
             query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
-            params = [start_date, end_date]
+            params = (start_date, end_date)
             if vehicle:
                 query += " AND vehicle = ?"
-                params.append(vehicle)
+                params = params + (vehicle,)
             try:
                 with engine.connect() as conn:
                     df = pd.read_sql_query(query, conn, params=params)
