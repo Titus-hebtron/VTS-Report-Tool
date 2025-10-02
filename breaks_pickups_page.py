@@ -199,9 +199,9 @@ def breaks_pickups_page():
             ORDER BY pickup_date DESC
         """
         with engine.connect() as conn:
-            pickups_df = pd.read_sql_query(pickup_query, conn, params=[
-                vehicle_filter, contractor_id, week_start, week_end
-            ])
+            pickups_df = pd.read_sql_query(pickup_query, conn, params=(
+                vehicle_filter, contractor_id, week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d')
+            ))
 
             break_query = """
                 SELECT *
@@ -211,9 +211,9 @@ def breaks_pickups_page():
                 AND break_date BETWEEN ? AND ?
                 ORDER BY break_date DESC
             """
-            breaks_df = pd.read_sql_query(break_query, conn, params=[
-                vehicle_filter, contractor_id, week_start, week_end
-            ])
+            breaks_df = pd.read_sql_query(break_query, conn, params=(
+                vehicle_filter, contractor_id, week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d')
+            ))
 
         if not pickups_df.empty or not breaks_df.empty:
             if not pickups_df.empty:
