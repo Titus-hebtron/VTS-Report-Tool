@@ -1,6 +1,7 @@
 def fill_incident_template(ws, row):
     from openpyxl.styles import Alignment
     from openpyxl.drawing.image import Image as OpenpyxlImage
+    from openpyxl import utils
 
     # Define merged cells
     ws.merge_cells('A1:AM1')
@@ -106,7 +107,7 @@ def fill_incident_template(ws, row):
     # Auto column width
     for col in ws.columns:
         max_length = 0
-        col_letter = col[0].column_letter
+        col_letter = utils.get_column_letter(col[0].column)
         for cell in col:
             try:
                 if cell.value and len(str(cell.value)) > max_length:
