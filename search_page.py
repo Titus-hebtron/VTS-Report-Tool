@@ -6,7 +6,7 @@ def fill_incident_template(ws, row, index):
     # Define merged cells
     ws.merge_cells('A1:K1')
     ws.merge_cells('B2:K2')
-    ws.merge_cells('A3:AM3')
+    ws.merge_cells('A3:K3')
     ws.merge_cells('J4:K4')
     ws.merge_cells('B9:C9')
     ws.merge_cells('F9:H9')
@@ -39,7 +39,7 @@ def fill_incident_template(ws, row, index):
         img = OpenpyxlImage(ORG_LOGO_PATH)
         img.width = 800  # Increase width for visibility
         img.height = 100  # Increase height for visibility
-        img.anchor = 'D1'
+        img.anchor = 'B1'
         ws.add_image(img)
         ws.row_dimensions[1].height = 100  # Set row height to fit larger logo
     except Exception as e:
