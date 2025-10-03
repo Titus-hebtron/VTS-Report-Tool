@@ -65,10 +65,10 @@ def fill_incident_template(ws, row):
     ws['J4'] = rfi_number
 
     # Row 6: Date and Time
-    ws['B6'] = 'Incident Date:'
-    ws['C6'] = row.get('incident_date')
-    ws['F6'] = 'Incident Time:'
-    ws['G6'] = row.get('incident_time')
+    ws['A6'] = 'Incident Date:'
+    ws['B6'] = row.get('incident_date')
+    ws['D6'] = 'Incident Time:'
+    ws['E6'] = row.get('incident_time')
 
     # Row 8: Caller Info and Patrol Vehicle
     ws['A8'] = 'Caller:'
