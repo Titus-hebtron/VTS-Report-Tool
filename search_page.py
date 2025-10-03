@@ -389,10 +389,10 @@ def search_page():
                 st.error(f"Error creating Excel workbook: {e}")
                 st.warning("Ensure all data is valid and required libraries are installed.")
 
-            # Clean up temp directory after download
-            if temp_dir:
-                import shutil
-                shutil.rmtree(temp_dir)
+            finally:
+                if temp_dir:
+                    import shutil
+                    shutil.rmtree(temp_dir)
 
             # CSV Download
             csv = df.to_csv(index=False).encode('utf-8')
