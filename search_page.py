@@ -333,7 +333,14 @@ def search_page():
                         for index, row in df.iterrows():
                             report_id = row.get('id')
                             if report_id:
-                                sheet_name = f"Report_{index+1}"[:31]
+                                contractor_id = row.get('contractor_id')
+                                if contractor_id == 1:
+                                    rfi_prefix = 'WIZP'
+                                elif contractor_id == 2:
+                                    rfi_prefix = 'PASC'
+                                else:
+                                    rfi_prefix = 'PASC'
+                                sheet_name = f"{rfi_prefix}{index+1:03d}"[:31]
                                 ws = writer.sheets[sheet_name]
 
                                 linked_images = image_df[image_df['incident_id'] == report_id]
