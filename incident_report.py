@@ -58,8 +58,11 @@ def incident_report_page(patrol_vehicle_options=None):
             clearing_date = st.date_input("Clearing Date", value=incident_date)
             clearing_time_val = st.time_input("Clearing Time")
 
-        department_contact = st.text_input("Department Contact")
+        department_contact = st.multiselect("Department Contacted", ["KeNHA", "Police", "Engineer", "Highway Patrol Unit", "Ambulance", "Recovery Vehicle", "Hospital"])
         description = st.text_area("Incident Description")
+
+        st.subheader("Incident Information Resource")
+        incident_info_resource = st.multiselect("Incident Information Resource", ["KeNHA", "Police", "Engineer", "Road User", "Highway Patrol Unit", "Others"])
 
         uploaded_photos = st.file_uploader(
             "Upload Incident Photos",
@@ -93,10 +96,11 @@ def incident_report_page(patrol_vehicle_options=None):
                     "damage_road_furniture": damage_road_furniture,
                     "response_time": response_datetime,
                     "clearing_time": clearing_datetime,
-                    "department_contact": department_contact,
+                    "department_contact": ", ".join(department_contact),
                     "description": description,
                     "patrol_car": patrol_car,
                     "incident_type": incident_type,
+                    "incident_info_resource": ", ".join(incident_info_resource),
                 }
 
                 report_id = save_incident_report(data, uploaded_by="Admin")

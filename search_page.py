@@ -1,4 +1,4 @@
-def fill_incident_template(ws, row):
+def fill_incident_template(ws, row, index):
     from openpyxl.styles import Alignment, Border, Side
     from openpyxl.drawing.image import Image as OpenpyxlImage
     from openpyxl import utils
@@ -8,13 +8,13 @@ def fill_incident_template(ws, row):
     ws.merge_cells('B2:K2')
     ws.merge_cells('A3:AM3')
     ws.merge_cells('J4:M4')
-    ws.merge_cells('B8:C8')
-    ws.merge_cells('F8:H8')
-    ws.merge_cells('C9:K9')
-    ws.merge_cells('C10:D10')
-    ws.merge_cells('C12:K12')
-    ws.merge_cells('D14:K14')
+    ws.merge_cells('B9:C9')
+    ws.merge_cells('F9:H9')
+    ws.merge_cells('C10:K10')
+    ws.merge_cells('C11:D11')
+    ws.merge_cells('C13:K13')
     ws.merge_cells('D15:K15')
+    ws.merge_cells('D16:K16')
 
     # Logo insertion
     ORG_LOGO_PATH = 'Kenhalogo.png'
@@ -25,11 +25,11 @@ def fill_incident_template(ws, row):
     # Insert Main Organization Logo
     try:
         img = OpenpyxlImage(ORG_LOGO_PATH)
-        img.width = 400  # Increase width for visibility
+        img.width = 800  # Increase width for visibility
         img.height = 100  # Increase height for visibility
         img.anchor = 'A1'
         ws.add_image(img)
-        ws.row_dimensions[1].height = 120  # Set row height to fit larger logo
+        ws.row_dimensions[1].height = 100  # Set row height to fit larger logo
     except Exception as e:
         print(f"Warning: Could not insert org logo. {e}")
 
@@ -57,11 +57,22 @@ def fill_incident_template(ws, row):
 
     # Styles
     wrap_alignment = Alignment(wrap_text=True, vertical='top')
-    for cell_range in ['C9', 'C12', 'D14', 'D15']:
+    for cell_range in ['C10', 'C13', 'D15', 'D16']:
         ws[cell_range].alignment = wrap_alignment
 
     # Data population
-    rfi_number = "AXXX"
+    contractor_id = row.get('contractor_id')
+    if contractor_id == 1:
+        contractor = 'wizpro'
+        rfi_prefix = 'WIZP'
+    elif contractor_id == 2:
+        contractor = 'paschal'
+        rfi_prefix = 'PASC'
+    else:
+        contractor = 'paschal'
+        rfi_prefix = 'PASC'
+    CONTRACTOR_NAME = contractor
+    rfi_number = f"{rfi_prefix}{index+1:03d}"
     ws['J4'] = rfi_number
 
     # Row 6: Date and Time
@@ -70,76 +81,102 @@ def fill_incident_template(ws, row):
     ws['D6'] = 'Incident Time:'
     ws['E6'] = row.get('incident_time')
 
-    # Row 8: Caller Info and Patrol Vehicle
-    ws['A8'] = 'Caller:'
-    ws['B8'] = row.get('caller')
-    ws['E8'] = 'Phone Number:'
-    ws['F8'] = row.get('phone_number')
-    ws['I8'] = 'Patrol Car:'
-    ws['J8'] = row.get('patrol_car')
+    # Row 7: Incident Information Resource
+    ws['A7'] = 'Incident Information Resource:'
+    ws['B7'] = row.get('incident_info_resource', '')
 
-    # Row 9: Nature of Incident
-    ws['A9'] = 'Nature of Incident:'
+    # Row 9: Caller Info and Patrol Vehicle
+    ws['A9'] = 'Caller:'
+    ws['B9'] = row.get('caller')
+    ws['E9'] = 'Phone Number:'
+    ws['F9'] = row.get('phone_number')
+    ws['I9'] = 'Patrol Car:'
+    ws['J9'] = row.get('patrol_car')
+
+    # Row 10: Nature of Incident
+    ws['A10'] = 'Nature of Incident:'
     nature_text = f"{row.get('incident_type', 'N/A')} - {row.get('description', 'No details provided.')}"
-    ws['C9'] = nature_text
+    ws['C10'] = nature_text
 
-    # Row 10: Location Details
-    ws['A10'] = 'Location:'
-    ws['C10'] = row.get('location')
-    ws['E10'] = 'Bound:'
-    ws['F10'] = row.get('bound')
-    ws['H10'] = 'Chainage:'
-    ws['I10'] = row.get('chainage')
+    # Row 11: Location Details
+    ws['A11'] = 'Location:'
+    ws['C11'] = row.get('location')
+    ws['E11'] = 'Bound:'
+    ws['F11'] = row.get('bound')
+    ws['H11'] = 'Chainage:'
+    ws['I11'] = row.get('chainage')
 
-    # Row 12: Vehicle Details
-    ws['A12'] = 'Vehicle Details:'
+    # Row 13: Vehicle Details
+    ws['A13'] = 'Vehicle Details:'
     vehicle_details = (
         f"Type: {row.get('vehicle_type', 'N/A')} "
         f"({row.get('num_vehicles', '1')} unit(s)). "
         f"Condition: {row.get('vehicle_condition', 'Unknown')}"
     )
-    ws['C12'] = vehicle_details
+    ws['C13'] = vehicle_details
 
-    # Row 13: Hazards
-    ws['A13'] = 'Fire Hazard:'
-    ws['C13'] = row.get('fire_hazard', 'No')
-    ws['E13'] = 'Oil Leakage:'
-    ws['F13'] = row.get('oil_leakage', 'No')
-    ws['H13'] = 'Chemical Leakage:'
-    ws['I13'] = row.get('chemical_leakage', 'No')
+    # Row 14: Hazards
+    ws['A14'] = 'Fire Hazard:'
+    ws['C14'] = row.get('fire_hazard', 'No')
+    ws['E14'] = 'Oil Leakage:'
+    ws['F14'] = row.get('oil_leakage', 'No')
+    ws['H14'] = 'Chemical Leakage:'
+    ws['I14'] = row.get('chemical_leakage', 'No')
 
-    # Row 14: Injured people
-    ws['A14'] = 'Injured People:'
+    # Row 15: Injured people
+    ws['A15'] = 'Injured People:'
     injured_details = (
         f"No: {row.get('num_injured', '0')}. "
         f"Condition: {row.get('cond_injured', 'N/A')}. "
         f"Part: {row.get('injured_part', 'N/A')}"
     )
-    ws['C14'] = injured_details
+    ws['C15'] = injured_details
 
-    # Row 15: Road Furniture Damage
-    ws['A15'] = 'Road Furniture Damage:'
-    ws['C15'] = row.get('damage_road_furniture', 'Nil')
+    # Row 16: Road Furniture Damage
+    ws['A16'] = 'Road Furniture Damage:'
+    ws['C16'] = row.get('damage_road_furniture', 'Nil')
 
-    # Row 16: Response and Clearing Time
-    ws['A16'] = 'Response Time:'
-    ws['C16'] = row.get('response_time')
-    ws['E16'] = 'Clearing Time:'
-    ws['F16'] = row.get('clearing_time')
+    # Row 17: Response and Clearing Time
+    ws['A17'] = 'Response Time:'
+    ws['C17'] = row.get('response_time')
+    ws['E17'] = 'Clearing Time:'
+    ws['F17'] = row.get('clearing_time')
 
-    # Row 17: Department Contacted
-    ws['A17'] = 'Department Contacted:'
-    ws['C17'] = row.get('department_contact')
+    # Row 18: Department Contacted
+    ws['A18'] = 'Department Contacted:'
+    ws['C18'] = row.get('department_contact')
 
     # Make labels bold
     from openpyxl.styles import Font
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    for row_num in range(6, 18):
+    thick_side = Side(style='thick')
+    for row_num in range(6, 19):
         for cell in ws[row_num]:
             if cell.value and isinstance(cell.value, str) and cell.value.endswith(':'):
                 cell.font = Font(bold=True)
             if cell.value:
                 cell.border = thin_border
+
+    # Add outer thick borders
+    for r in range(1, 19):
+        for c in range(1, 12):
+            cell = ws.cell(row=r, column=c)
+            if cell.border:
+                current = cell.border
+                new_border = Border(
+                    left=thick_side if c == 1 else current.left,
+                    right=thick_side if c == 11 else current.right,
+                    top=thick_side if r == 1 else current.top,
+                    bottom=thick_side if r == 18 else current.bottom
+                )
+                cell.border = new_border
+            elif cell.value:
+                cell.border = Border(
+                    left=thick_side if c == 1 else Side(style='thin'),
+                    right=thick_side if c == 11 else Side(style='thin'),
+                    top=thick_side if r == 1 else Side(style='thin'),
+                    bottom=thick_side if r == 18 else Side(style='thin')
+                )
 
     # Auto column width
     for col in ws.columns:
@@ -191,6 +228,12 @@ def search_page():
             if vehicle:
                 query += " AND patrol_car = ?"
                 params = params + (vehicle,)
+
+            if st.session_state["role"] == "re_admin":
+                contractor_id = st.session_state.get("active_contractor")
+                if contractor_id:
+                    query += " AND contractor_id = ?"
+                    params = params + (contractor_id,)
 
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
@@ -258,9 +301,16 @@ def search_page():
                     if selected_option in ["Accidents", "Incidents"]:
                         # Create a template sheet for each report
                         for index, row in df.iterrows():
-                            sheet_name = f"Report_{index+1}"[:31]
+                            contractor_id = row.get('contractor_id')
+                            if contractor_id == 1:
+                                rfi_prefix = 'WIZP'
+                            elif contractor_id == 2:
+                                rfi_prefix = 'PASC'
+                            else:
+                                rfi_prefix = 'PASC'
+                            sheet_name = f"{rfi_prefix}{index+1:03d}"[:31]
                             ws = writer.book.create_sheet(title=sheet_name)
-                            fill_incident_template(ws, row)
+                            fill_incident_template(ws, row, index)
                     else:
                         # For other options, use column sheets
                         for col in df.columns:
@@ -300,11 +350,11 @@ def search_page():
 
                                             img = OpenpyxlImage(temp_file_path)
                                             img.anchor = f'A{current_row}'
-                                            img.width = 476250  # 100 pixels
-                                            img.height = 352425  # 75 pixels
+                                            img.width = 400
+                                            img.height = 300
                                             ws.add_image(img)
 
-                                            current_row += 15
+                                            current_row += 10
                                         except Exception as img_e:
                                             # Skip this image and continue
                                             continue
