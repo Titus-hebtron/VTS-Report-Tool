@@ -65,24 +65,34 @@ def fill_incident_template(ws, row):
     ws['J4'] = rfi_number
 
     # Row 6: Date and Time
-    ws['D6'] = row.get('incident_date')
-    ws['L6'] = row.get('incident_time')
+    ws['B6'] = 'Incident Date:'
+    ws['C6'] = row.get('incident_date')
+    ws['F6'] = 'Incident Time:'
+    ws['G6'] = row.get('incident_time')
 
     # Row 8: Caller Info and Patrol Vehicle
+    ws['A8'] = 'Caller:'
     ws['B8'] = row.get('caller')
+    ws['E8'] = 'Phone Number:'
     ws['F8'] = row.get('phone_number')
-    ws['L8'] = row.get('patrol_car')
+    ws['I8'] = 'Patrol Car:'
+    ws['J8'] = row.get('patrol_car')
 
     # Row 9: Nature of Incident
+    ws['A9'] = 'Nature of Incident:'
     nature_text = f"{row.get('incident_type', 'N/A')} - {row.get('description', 'No details provided.')}"
     ws['C9'] = nature_text
 
     # Row 10: Location Details
+    ws['A10'] = 'Location:'
     ws['C10'] = row.get('location')
+    ws['E10'] = 'Bound:'
     ws['F10'] = row.get('bound')
-    ws['L10'] = row.get('chainage')
+    ws['H10'] = 'Chainage:'
+    ws['I10'] = row.get('chainage')
 
     # Row 12: Vehicle Details
+    ws['A12'] = 'Vehicle Details:'
     vehicle_details = (
         f"Type: {row.get('vehicle_type', 'N/A')} "
         f"({row.get('num_vehicles', '1')} unit(s)). "
@@ -91,27 +101,42 @@ def fill_incident_template(ws, row):
     ws['C12'] = vehicle_details
 
     # Row 13: Hazards
+    ws['A13'] = 'Fire Hazard:'
     ws['C13'] = row.get('fire_hazard', 'No')
+    ws['E13'] = 'Oil Leakage:'
     ws['F13'] = row.get('oil_leakage', 'No')
-    ws['J13'] = row.get('chemical_leakage', 'No')
+    ws['H13'] = 'Chemical Leakage:'
+    ws['I13'] = row.get('chemical_leakage', 'No')
 
     # Row 14: Injured people
+    ws['A14'] = 'Injured People:'
     injured_details = (
         f"No: {row.get('num_injured', '0')}. "
         f"Condition: {row.get('cond_injured', 'N/A')}. "
         f"Part: {row.get('injured_part', 'N/A')}"
     )
-    ws['D14'] = injured_details
+    ws['C14'] = injured_details
 
     # Row 15: Road Furniture Damage
-    ws['D15'] = row.get('damage_road_furniture', 'Nil')
+    ws['A15'] = 'Road Furniture Damage:'
+    ws['C15'] = row.get('damage_road_furniture', 'Nil')
 
     # Row 16: Response and Clearing Time
+    ws['A16'] = 'Response Time:'
     ws['C16'] = row.get('response_time')
-    ws['I16'] = row.get('clearing_time')
+    ws['E16'] = 'Clearing Time:'
+    ws['F16'] = row.get('clearing_time')
 
     # Row 17: Department Contacted
+    ws['A17'] = 'Department Contacted:'
     ws['C17'] = row.get('department_contact')
+
+    # Make labels bold
+    from openpyxl.styles import Font
+    for row_num in range(6, 18):
+        for cell in ws[row_num]:
+            if cell.value and isinstance(cell.value, str) and cell.value.endswith(':'):
+                cell.font = Font(bold=True)
 
     # Auto column width
     for col in ws.columns:
