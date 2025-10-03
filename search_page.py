@@ -1,10 +1,10 @@
 def fill_incident_template(ws, row):
-    from openpyxl.styles import Alignment
+    from openpyxl.styles import Alignment, Border, Side
     from openpyxl.drawing.image import Image as OpenpyxlImage
     from openpyxl import utils
 
     # Define merged cells
-    ws.merge_cells('A1:AM1')
+    ws.merge_cells('A1:K1')
     ws.merge_cells('B2:K2')
     ws.merge_cells('A3:AM3')
     ws.merge_cells('J4:M4')
@@ -25,11 +25,11 @@ def fill_incident_template(ws, row):
     # Insert Main Organization Logo
     try:
         img = OpenpyxlImage(ORG_LOGO_PATH)
-        img.width = 200  # Adjust width to fit
-        img.height = 60  # Adjust height to fit
+        img.width = 400  # Increase width for visibility
+        img.height = 100  # Increase height for visibility
         img.anchor = 'A1'
         ws.add_image(img)
-        ws.row_dimensions[1].height = 80  # Set row height to fit logo
+        ws.row_dimensions[1].height = 120  # Set row height to fit larger logo
     except Exception as e:
         print(f"Warning: Could not insert org logo. {e}")
 
@@ -133,10 +133,13 @@ def fill_incident_template(ws, row):
 
     # Make labels bold
     from openpyxl.styles import Font
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     for row_num in range(6, 18):
         for cell in ws[row_num]:
             if cell.value and isinstance(cell.value, str) and cell.value.endswith(':'):
                 cell.font = Font(bold=True)
+            if cell.value:
+                cell.border = thin_border
 
     # Auto column width
     for col in ws.columns:
