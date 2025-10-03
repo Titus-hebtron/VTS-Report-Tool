@@ -350,7 +350,7 @@ def search_page():
                                     ws.cell(row=current_row, column=1, value=f"--- IMAGES FOR REPORT ID: {report_id} ---").font = openpyxl.styles.Font(bold=True)
                                     current_row += 1
 
-                                    for img_index, img_row in linked_images.iterrows():
+                                    for img_counter, (img_index, img_row) in enumerate(linked_images.iterrows()):
                                         img_data_blob = img_row['image_data']
                                         img_name = img_row['image_name']
 
@@ -365,12 +365,15 @@ def search_page():
                                                 f.write(img_data_blob)
 
                                             img = OpenpyxlImage(temp_file_path)
-                                            img.anchor = f'A{current_row}'
+                                            col_letters = ['A', 'D', 'G']
+                                            col = col_letters[img_counter % 3]
+                                            img.anchor = f'{col}{current_row}'
                                             img.width = 400
                                             img.height = 300
                                             ws.add_image(img)
 
-                                            current_row += 10
+                                            if (img_counter + 1) % 3 == 0:
+                                                current_row += 10
                                         except Exception as img_e:
                                             # Skip this image and continue
                                             continue
