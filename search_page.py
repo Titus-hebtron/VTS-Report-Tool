@@ -16,9 +16,21 @@ def fill_incident_template(ws, row, index):
     ws.merge_cells('D15:K15')
     ws.merge_cells('D16:K16')
 
+    # Determine contractor
+    contractor_id = row.get('contractor_id')
+    if contractor_id == 1:
+        contractor = 'wizpro'
+        rfi_prefix = 'WIZP'
+    elif contractor_id == 2:
+        contractor = 'paschal'
+        rfi_prefix = 'PASC'
+    else:
+        contractor = 'paschal'
+        rfi_prefix = 'PASC'
+    CONTRACTOR_NAME = contractor
+
     # Logo insertion
     ORG_LOGO_PATH = 'Kenhalogo.png'
-    CONTRACTOR_NAME = 'paschal'
     PASCHAL_LOGO_PATH = 'paschal_logo.png'  # Placeholder, ensure file exists
     WIZPRO_LOGO_PATH = 'wizpro_logo.png'    # Placeholder
 
@@ -70,17 +82,6 @@ def fill_incident_template(ws, row, index):
         ws[cell_range].alignment = wrap_alignment
 
     # Data population
-    contractor_id = row.get('contractor_id')
-    if contractor_id == 1:
-        contractor = 'wizpro'
-        rfi_prefix = 'WIZP'
-    elif contractor_id == 2:
-        contractor = 'paschal'
-        rfi_prefix = 'PASC'
-    else:
-        contractor = 'paschal'
-        rfi_prefix = 'PASC'
-    CONTRACTOR_NAME = contractor
     rfi_number = f"{rfi_prefix}{index+1:03d}"
     ws['J4'] = rfi_number
 
