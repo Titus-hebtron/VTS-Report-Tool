@@ -1,86 +1,108 @@
 def fill_incident_template(ws, row):
-    from openpyxl.styles import Font, PatternFill
-    yellow = PatternFill(start_color='FFFF00', end_color='FFFF00', fill_type='solid')
-    # Row 7: Incident Notification Date, Incident Notification Time
-    ws['B7'] = 'Incident Notification Date:'
-    ws['C7'] = str(row.get('incident_date', ''))
-    ws['F7'] = 'Incident Notification Time:'
-    ws['G7'] = str(row.get('incident_time', ''))
-    ws['C7'].fill = yellow
-    ws['G7'].fill = yellow
-    # Row 8: Caller, Phone Number
-    ws['I8'] = 'Caller:'
-    ws['J8'] = str(row.get('caller', ''))
-    ws['J8'].fill = yellow
-    ws['L8'] = 'Phone Number:'
-    ws['M8'] = str(row.get('phone_number', ''))
-    ws['M8'].fill = yellow
+    from openpyxl.styles import Alignment
+    from openpyxl.drawing.image import Image as OpenpyxlImage
+
+    # Define merged cells
+    ws.merge_cells('A1:AM1')
+    ws.merge_cells('B2:K2')
+    ws.merge_cells('A3:AM3')
+    ws.merge_cells('J4:M4')
+    ws.merge_cells('B8:C8')
+    ws.merge_cells('F8:H8')
+    ws.merge_cells('C9:K9')
+    ws.merge_cells('C10:D10')
+    ws.merge_cells('C12:K12')
+    ws.merge_cells('D14:K14')
+    ws.merge_cells('D15:K15')
+
+    # Logo insertion
+    ORG_LOGO_PATH = 'Kenhalogo.png'
+    CONTRACTOR_NAME = 'paschal'
+    PASCHAL_LOGO_PATH = 'paschal_logo.png'  # Placeholder, ensure file exists
+    WIZPRO_LOGO_PATH = 'wizpro_logo.png'    # Placeholder
+
+    # Insert Main Organization Logo
+    try:
+        img = OpenpyxlImage(ORG_LOGO_PATH)
+        img.anchor = 'A1'
+        ws.add_image(img)
+    except Exception as e:
+        print(f"Warning: Could not insert org logo. {e}")
+
+    # Insert Contractor Logo
+    try:
+        if CONTRACTOR_NAME.lower() == 'paschal':
+            img = OpenpyxlImage(PASCHAL_LOGO_PATH)
+            img.anchor = 'B2'
+            ws.add_image(img)
+        elif CONTRACTOR_NAME.lower() == 'wizpro':
+            img = OpenpyxlImage(WIZPRO_LOGO_PATH)
+            img.anchor = 'B2'
+            ws.add_image(img)
+    except Exception as e:
+        print(f"Warning: Could not insert contractor logo. {e}")
+
+    # Set title (assuming it's not in template)
+    ws['A3'] = 'INCIDENT REPORT'
+
+    # Styles
+    wrap_alignment = Alignment(wrap_text=True, vertical='top')
+    for cell_range in ['C9', 'C12', 'D14', 'D15']:
+        ws[cell_range].alignment = wrap_alignment
+
+    # Data population
+    rfi_number = "AXXX"
+    ws['J4'] = rfi_number
+
+    # Row 6: Date and Time
+    ws['D6'] = row.get('incident_date')
+    ws['L6'] = row.get('incident_time')
+
+    # Row 8: Caller Info and Patrol Vehicle
+    ws['B8'] = row.get('caller')
+    ws['F8'] = row.get('phone_number')
+    ws['L8'] = row.get('patrol_car')
+
     # Row 9: Nature of Incident
-    ws['B9'] = 'Nature of Incident:'
     nature_text = f"{row.get('incident_type', 'N/A')} - {row.get('description', 'No details provided.')}"
     ws['C9'] = nature_text
-    # Row 10: Location, Bound, Chainage
-    ws['B10'] = 'Location of Incident :'
-    ws['C10'] = str(row.get('location', ''))
-    ws['C10'].fill = yellow
-    ws['E10'] = 'Bound:'
-    ws['F10'] = str(row.get('bound', ''))
-    ws['F10'].fill = yellow
-    ws['H10'] = 'Chainage:'
-    ws['I10'] = str(row.get('chainage', ''))
-    ws['I10'].fill = yellow
-    # Row 11: Number of Accident Vehicles, Type of Vehicle
-    ws['B11'] = 'Number of Accident Vehicles:'
-    ws['C11'] = str(row.get('num_vehicles', ''))
-    ws['C11'].fill = yellow
-    ws['E11'] = 'Type of Vehicle:'
-    ws['F11'] = str(row.get('vehicle_type', ''))
-    ws['F11'].fill = yellow
-    # Row 12: Conditions of Accident Vehicles, Number of Injured People
-    ws['B12'] = 'Conditions of Accident Vehicles:'
-    vehicle_details = f"Type: {row.get('vehicle_type', 'N/A')} ({row.get('num_vehicles', '1')} unit(s)). Condition: {row.get('vehicle_condition', 'Unknown')}"
-    if str(row.get('incident_type', '')).lower() == "accident":
-        ws['D12'] = vehicle_details
-    else:
-        ws['C12'] = vehicle_details
-    ws['C12'].fill = yellow
-    ws['D12'].fill = yellow
-    ws['H12'] = 'Number of Injured People:'
-    ws['I12'] = str(row.get('num_injured', ''))
-    ws['I12'].fill = yellow
-    # Row 13: Conditions of Injured People, The Injured Part
-    ws['B13'] = 'Conditions of Injured People:'
-    ws['C13'] = str(row.get('cond_injured', ''))
-    ws['C13'].fill = yellow
-    ws['F13'] = 'The Injured Part:'
-    ws['G13'] = str(row.get('injured_part', ''))
-    ws['G13'].fill = yellow
-    # Row 14: Fire Hazard, Oil Leakage, Chemical Leakage
-    ws['B14'] = 'Fire Hazard:'
-    ws['C14'] = 'Yes' if row.get('fire_hazard') else 'No'
-    ws['C14'].fill = yellow
-    ws['E14'] = 'Oil Leakage:'
-    ws['F14'] = 'Yes' if row.get('oil_leakage') else 'No'
-    ws['F14'].fill = yellow
-    ws['H14'] = 'Chemical Leakage:'
-    ws['I14'] = 'Yes' if row.get('chemical_leakage') else 'No'
-    ws['I14'].fill = yellow
-    # Row 15: Damage To Road Furniture
-    ws['B15'] = 'Damage To Road Furniture:'
-    ws['C15'] = 'Yes' if row.get('damage_road_furniture') else 'No'
-    ws['C15'].fill = yellow
-    # Row 16: Response Time, Clearing Time
-    ws['B16'] = 'Response Time:'
-    ws['C16'] = str(row.get('response_time', ''))
-    ws['C16'].fill = yellow
-    ws['F16'] = 'Clearing Time:'
-    ws['G16'] = str(row.get('clearing_time', ''))
-    ws['G16'].fill = yellow
-    # Formatting: bold for labels
-    for row_num in range(7, 17):
-        for cell in ws[row_num]:
-            if cell.value and isinstance(cell.value, str) and (cell.value.endswith(':') or cell.value in ['Accident', 'Emergency', 'Others']):
-                cell.font = Font(bold=True)
+
+    # Row 10: Location Details
+    ws['C10'] = row.get('location')
+    ws['F10'] = row.get('bound')
+    ws['L10'] = row.get('chainage')
+
+    # Row 12: Vehicle Details
+    vehicle_details = (
+        f"Type: {row.get('vehicle_type', 'N/A')} "
+        f"({row.get('num_vehicles', '1')} unit(s)). "
+        f"Condition: {row.get('vehicle_condition', 'Unknown')}"
+    )
+    ws['C12'] = vehicle_details
+
+    # Row 13: Hazards
+    ws['C13'] = row.get('fire_hazard', 'No')
+    ws['F13'] = row.get('oil_leakage', 'No')
+    ws['J13'] = row.get('chemical_leakage', 'No')
+
+    # Row 14: Injured people
+    injured_details = (
+        f"No: {row.get('num_injured', '0')}. "
+        f"Condition: {row.get('cond_injured', 'N/A')}. "
+        f"Part: {row.get('injured_part', 'N/A')}"
+    )
+    ws['D14'] = injured_details
+
+    # Row 15: Road Furniture Damage
+    ws['D15'] = row.get('damage_road_furniture', 'Nil')
+
+    # Row 16: Response and Clearing Time
+    ws['C16'] = row.get('response_time')
+    ws['I16'] = row.get('clearing_time')
+
+    # Row 17: Department Contacted
+    ws['C17'] = row.get('department_contact')
+
     # Auto column width
     for col in ws.columns:
         max_length = 0
