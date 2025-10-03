@@ -1,5 +1,5 @@
 def fill_incident_template(ws, row, index):
-    from openpyxl.styles import Alignment, Border, Side
+    from openpyxl.styles import Alignment, Border, Side, Font
     from openpyxl.drawing.image import Image as OpenpyxlImage
     from openpyxl import utils
 
@@ -157,7 +157,6 @@ def fill_incident_template(ws, row, index):
     ws['C18'] = row.get('department_contact')
 
     # Make labels bold
-    from openpyxl.styles import Font
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     thick_side = Side(style='thick')
     for row_num in range(6, 19):
