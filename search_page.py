@@ -25,8 +25,11 @@ def fill_incident_template(ws, row):
     # Insert Main Organization Logo
     try:
         img = OpenpyxlImage(ORG_LOGO_PATH)
+        img.width = 200  # Adjust width to fit
+        img.height = 60  # Adjust height to fit
         img.anchor = 'A1'
         ws.add_image(img)
+        ws.row_dimensions[1].height = 80  # Set row height to fit logo
     except Exception as e:
         print(f"Warning: Could not insert org logo. {e}")
 
@@ -34,12 +37,18 @@ def fill_incident_template(ws, row):
     try:
         if CONTRACTOR_NAME.lower() == 'paschal':
             img = OpenpyxlImage(PASCHAL_LOGO_PATH)
+            img.width = 150
+            img.height = 40
             img.anchor = 'B2'
             ws.add_image(img)
+            ws.row_dimensions[2].height = 60  # Set row height to fit logo
         elif CONTRACTOR_NAME.lower() == 'wizpro':
             img = OpenpyxlImage(WIZPRO_LOGO_PATH)
+            img.width = 150
+            img.height = 40
             img.anchor = 'B2'
             ws.add_image(img)
+            ws.row_dimensions[2].height = 60
     except Exception as e:
         print(f"Warning: Could not insert contractor logo. {e}")
 
