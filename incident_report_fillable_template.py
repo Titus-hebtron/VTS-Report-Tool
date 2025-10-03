@@ -155,8 +155,8 @@ def create_excel_report(info):
     if 'Images' in info and info['Images']:
         from openpyxl.drawing.image import Image as XLImage
         img_row = 19
-        img_col = 2  # Column B
-        for img in info['Images']:
+        img_col = 2  # Default starting column B
+        for i, img in enumerate(info['Images']):
             if img is not None:
                 try:
                     img.seek(0)
@@ -168,6 +168,10 @@ def create_excel_report(info):
                         xl_img = XLImage(tmp_img.name)
                         xl_img.width = 180  # px (enlarged)
                         xl_img.height = 135  # px (enlarged)
+                        if i == 1:  # Second image in column C
+                            img_col = 3
+                        elif i == 2:  # Third image in column E
+                            img_col = 5
                         cell = ws.cell(row=img_row, column=img_col)
                         ws.add_image(xl_img, cell.coordinate)
                         img_col += 2  # Next image to the right (skip a column for spacing)

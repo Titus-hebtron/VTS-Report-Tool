@@ -6,6 +6,13 @@ import traceback
 import streamlit as st
 from datetime import datetime
 import os
+import sqlite3
+
+# Register datetime adapter for SQLite to avoid deprecation warning in Python 3.12+
+def adapt_datetime(dt):
+    return dt.isoformat()
+
+sqlite3.register_adapter(datetime, adapt_datetime)
 
 # ------------------- DATABASE CONFIG -------------------
 # Force SQLite for Streamlit Cloud compatibility
@@ -216,33 +223,6 @@ def save_idle_report(idle_df, uploaded_by):
         print("❌ Error saving idle report:", e)
         traceback.print_exc()
 
-def get_idle_reports(limit=100):
-    """Fetch idle reports"""
-    contractor_id = get_active_contractor()
-    engine = get_sqlalchemy_engine()
-
-    query = """
-        SELECT id, vehicle, idle_start, idle_end, idle_duration_min,
-               location_address, latitude, longitude,
-               uploaded_by, uploaded_at, contractor_id
-        FROM idle_reports
-    """
-    params = [limit]  # Use list for positional parameters
-
-    if contractor_id:
-        query += " WHERE contractor_id = ?"
-        params.insert(0, contractor_id)  # Insert contractor_id at beginning
-
-    query += " ORDER BY uploaded_at DESC LIMIT ?"
-
-    # Use raw connection to avoid SQLAlchemy parameter issues
-    conn = engine.raw_connection()
-    try:
-        df = pd.read_sql_query(query, conn, params=params)
-    finally:
-        conn.close()
-
-    return df
 # -------------------------------------------------------
 
 # ------------------- USER MANAGEMENT -------------------
@@ -452,20 +432,16 @@ def get_recent_incident_reports(limit=20):
         FROM incident_reports ir
         JOIN contractors c ON ir.contractor_id = c.id
     """
-    params = [limit]  # Use list for positional parameters
+    params = {"limit": limit}
 
     if contractor_id:
-        base_query += " WHERE ir.contractor_id = ?"
-        params.insert(0, contractor_id)  # Insert contractor_id at beginning
+        base_query += " WHERE ir.contractor_id = :contractor_id"
+        params["contractor_id"] = contractor_id
 
-    base_query += " ORDER BY ir.created_at DESC LIMIT ?"
+    base_query += " ORDER BY ir.created_at DESC LIMIT :limit"
 
-    # Use raw connection to avoid SQLAlchemy parameter issues
-    conn = engine.raw_connection()
-    try:
-        df = pd.read_sql_query(base_query, conn, params=params)
-    finally:
-        conn.close()
+    # Use SQLAlchemy engine directly for pandas compatibility
+    df = pd.read_sql_query(text(base_query), engine, params=params)
 
     return df
 
