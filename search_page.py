@@ -7,7 +7,7 @@ def fill_incident_template(ws, row, index):
     ws.merge_cells('A1:K1')
     ws.merge_cells('B2:K2')
     ws.merge_cells('A3:AM3')
-    ws.merge_cells('J4:M4')
+    ws.merge_cells('J4:K4')
     ws.merge_cells('B9:C9')
     ws.merge_cells('F9:H9')
     ws.merge_cells('C10:K10')
