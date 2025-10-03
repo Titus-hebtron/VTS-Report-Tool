@@ -365,15 +365,15 @@ def search_page():
                                                 f.write(img_data_blob)
 
                                             img = OpenpyxlImage(temp_file_path)
-                                            col_letters = ['A', 'D', 'G']
-                                            col = col_letters[img_counter % 3]
+                                            col_letters = ['A', 'E']
+                                            col = col_letters[img_counter % 2]
                                             img.anchor = f'{col}{current_row}'
-                                            img.width = 400
-                                            img.height = 300
+                                            img.width = 300
+                                            img.height = 200
                                             ws.add_image(img)
 
-                                            if (img_counter + 1) % 3 == 0:
-                                                current_row += 10
+                                            if (img_counter + 1) % 2 == 0:
+                                                current_row += 12
                                         except Exception as img_e:
                                             # Skip this image and continue
                                             continue
