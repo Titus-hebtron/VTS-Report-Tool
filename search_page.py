@@ -27,7 +27,7 @@ def fill_incident_template(ws, row, index):
         img = OpenpyxlImage(ORG_LOGO_PATH)
         img.width = 800  # Increase width for visibility
         img.height = 100  # Increase height for visibility
-        img.anchor = 'A1'
+        img.anchor = 'D1'
         ws.add_image(img)
         ws.row_dimensions[1].height = 100  # Set row height to fit larger logo
     except Exception as e:
@@ -52,8 +52,17 @@ def fill_incident_template(ws, row, index):
     except Exception as e:
         print(f"Warning: Could not insert contractor logo. {e}")
 
-    # Set title (assuming it's not in template)
-    ws['A3'] = 'INCIDENT REPORT'
+    # Set title based on contractor
+    if contractor == 'paschal':
+        title = 'PERFORMANCE BASED MAINTENANCE CONTRACT FOR RUIRU-THIKA HIGHWAY'
+    elif contractor == 'wizpro':
+        title = 'PERFORMANCE BASED MAINTENANCE CONTRACT FOR NAIROBI-RUIRU'
+    else:
+        title = 'INCIDENT REPORT'
+    ws['A3'] = title.upper()
+    from openpyxl.styles import Alignment
+    ws['A3'].alignment = Alignment(horizontal='center', vertical='center')
+    ws['A3'].font = Font(bold=True, size=12)
 
     # Styles
     wrap_alignment = Alignment(wrap_text=True, vertical='top')
