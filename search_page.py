@@ -1,3 +1,5 @@
+import os
+
 def fill_incident_template(ws, row, index):
     from openpyxl.styles import Alignment, Border, Side, Font
     from openpyxl.drawing.image import Image as OpenpyxlImage
@@ -47,17 +49,17 @@ def fill_incident_template(ws, row, index):
 
     # Insert Contractor Logo
     try:
-        if CONTRACTOR_NAME.lower() == 'paschal':
+        if CONTRACTOR_NAME.lower() == 'paschal' and os.path.exists(PASCHAL_LOGO_PATH):
             img = OpenpyxlImage(PASCHAL_LOGO_PATH)
             img.width = 1000
-            img.height = 100
+            img.height = 60
             img.anchor = 'B2'
             ws.add_image(img)
             ws.row_dimensions[2].height = 60  # Set row height to fit logo
-        elif CONTRACTOR_NAME.lower() == 'wizpro':
+        elif CONTRACTOR_NAME.lower() == 'wizpro' and os.path.exists(WIZPRO_LOGO_PATH):
             img = OpenpyxlImage(WIZPRO_LOGO_PATH)
             img.width = 1000
-            img.height = 100
+            img.height = 60
             img.anchor = 'B2'
             ws.add_image(img)
             ws.row_dimensions[2].height = 60
