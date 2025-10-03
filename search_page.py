@@ -37,7 +37,7 @@ def fill_incident_template(ws, row, index):
     # Insert Main Organization Logo
     try:
         img = OpenpyxlImage(ORG_LOGO_PATH)
-        img.width = 800  # Increase width for visibility
+        img.width = 1000  # Increase width for visibility
         img.height = 100  # Increase height for visibility
         img.anchor = 'B1'
         ws.add_image(img)
@@ -49,15 +49,15 @@ def fill_incident_template(ws, row, index):
     try:
         if CONTRACTOR_NAME.lower() == 'paschal':
             img = OpenpyxlImage(PASCHAL_LOGO_PATH)
-            img.width = 150
-            img.height = 40
+            img.width = 1000
+            img.height = 100
             img.anchor = 'B2'
             ws.add_image(img)
             ws.row_dimensions[2].height = 60  # Set row height to fit logo
         elif CONTRACTOR_NAME.lower() == 'wizpro':
             img = OpenpyxlImage(WIZPRO_LOGO_PATH)
-            img.width = 150
-            img.height = 40
+            img.width = 1000
+            img.height = 100
             img.anchor = 'B2'
             ws.add_image(img)
             ws.row_dimensions[2].height = 60
