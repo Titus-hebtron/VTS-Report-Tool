@@ -240,8 +240,8 @@ def backup_management_page():
                 total, used, free = shutil.disk_usage(backup_dir)
                 free_gb = free / (1024**3)
                 st.info(f"💾 Available disk space: {free_gb:.2f} GB")
-            except:
-                pass
+            except Exception as e:
+                st.warning(f"Could not check disk space: {e}")
         else:
             st.warning(f"⚠️ Backup directory does not exist: {backup_dir}")
             if st.button("Create Backup Directory"):
@@ -256,24 +256,57 @@ def backup_management_page():
         if st.button("🚀 Run Manual Backup Now", type="primary"):
             with st.spinner("Running backup... This may take a few minutes."):
                 try:
-                    import subprocess
-                    result = subprocess.run([
-                        "python", "backup_script.py"
-                    ], capture_output=True, text=True, timeout=600)  # 10 minute timeout
+                    # Import backup functions directly to avoid subprocess issues
+                    import os
+                    import sqlite3
+                    import shutil
+                    import datetime
+                    import zipfile
+                    import io
 
-                    if result.returncode == 0:
-                        st.success("✅ Manual backup completed successfully!")
-                        st.info("Check your email (hebtron25@gmail.com) for backup confirmation.")
-                        st.rerun()  # Refresh to show new backups
+                    # Simple backup logic for manual trigger
+                    DB_PATH = 'vts_database.db'
+                    IMAGES_DIR = 'uploaded_accident_images'
+                    BACKUP_DIR = 'backups'
+
+                    # Create backups directory
+                    os.makedirs(BACKUP_DIR, exist_ok=True)
+
+                    # Generate backup filename
+                    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+
+                    # Database backup
+                    if os.path.exists(DB_PATH):
+                        db_backup = f'vts_database_backup_{timestamp}.db'
+                        db_path = os.path.join(BACKUP_DIR, db_backup)
+                        shutil.copy2(DB_PATH, db_path)
+                        st.info(f"✅ Database backup created: {db_backup}")
                     else:
-                        st.error("❌ Manual backup failed!")
-                        with st.expander("View Error Details"):
-                            st.code(result.stderr, language="text")
+                        st.warning("Database file not found")
 
-                except subprocess.TimeoutExpired:
-                    st.error("❌ Backup timed out after 10 minutes")
+                    # Images backup
+                    if os.path.exists(IMAGES_DIR):
+                        img_backup = f'uploaded_images_backup_{timestamp}.zip'
+                        img_path = os.path.join(BACKUP_DIR, img_backup)
+                        with zipfile.ZipFile(img_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                            for root, dirs, files in os.walk(IMAGES_DIR):
+                                for file in files:
+                                    file_path = os.path.join(root, file)
+                                    arcname = os.path.relpath(file_path, IMAGES_DIR)
+                                    zipf.write(file_path, arcname)
+                        st.info(f"✅ Images backup created: {img_backup}")
+                    else:
+                        st.warning("Images directory not found")
+
+                    st.success("✅ Manual backup completed successfully!")
+                    st.info("Backups are stored locally. For Google Drive upload and email notifications, run the full backup script.")
+                    st.rerun()  # Refresh to show new backups
+
                 except Exception as e:
                     st.error(f"❌ Backup failed: {e}")
+                    import traceback
+                    with st.expander("View Error Details"):
+                        st.code(traceback.format_exc(), language="text")
 
         # Backup schedule info
         st.subheader("⏰ Backup Schedule")
