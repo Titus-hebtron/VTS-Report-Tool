@@ -9,7 +9,12 @@ from db_utils import get_sqlalchemy_engine, get_user, verify_password, get_contr
 from breaks_pickups_page import breaks_pickups_page
 from streamlit_folium import st_folium
 import folium
-from streamlit_autorefresh import st_autorefresh
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+    AUTOREFRESH_AVAILABLE = True
+except ImportError:
+    AUTOREFRESH_AVAILABLE = False
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -56,7 +61,13 @@ def init_database_if_needed():
 
                 st.success("✅ Database initialized successfully!")
 
+            # Note: Column additions are handled dynamically in the GPS monitoring page
+            # to ensure compatibility with existing databases
+
             # Always ensure vehicles exist (in case they were deleted or missing)
+            # Note: The patrol cars being monitored through GPRS are the five vehicles from the two contractors:
+            # Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car)
+            # The recovery cars serve as additional slots for backup vehicles
             vehicles = [
                 ('KDG 320Z', 'Wizpro'), ('KDS 374F', 'Wizpro'), ('KDK 825Y', 'Wizpro'), ('Replacement Car', 'Wizpro'),
                 ('KDC 873G', 'Paschal'), ('KDD 500X', 'Paschal'), ('Replacement Car', 'Paschal'),
@@ -66,7 +77,7 @@ def init_database_if_needed():
             cursor = conn.connection.cursor()
             for plate_number, contractor in vehicles:
                 cursor.execute("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)",
-                             (plate_number, contractor))
+                              (plate_number, contractor))
 
             # Add sample idle reports for testing
             from datetime import datetime
@@ -612,13 +623,18 @@ if role == "admin":
                      "Breaks & Pickups", "Search Page"]
 elif role == "control":
     allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
-                     "Breaks & Pickups", "Search Page"]
+                     "Breaks & Pickups", "Search Page", "GPS Tracking", "Real-Time GPS"]
+elif role == "contractor":
+    allowed_pages = ["Incident Report", "GPS Tracking", "Real-Time GPS"]
+elif role == "admin":
+    allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
+                     "Breaks & Pickups", "Search Page", "GPS Tracking", "Real-Time GPS"]
 elif role == "patrol":
-    allowed_pages = ["Incident Report", "Breaks & Pickups"]
+    allowed_pages = ["Incident Report", "Breaks & Pickups", "GPS Tracking", "Real-Time GPS"]
 elif role == "re_admin":
     # RE admin has access to all pages
     allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
-                     "Report Search", "Breaks & Pickups", "Search Page", "Accident Analysis"]
+                     "Report Search", "Breaks & Pickups", "Search Page", "Accident Analysis", "GPS Tracking", "Real-Time GPS"]
 else:
     allowed_pages = []
 
@@ -649,6 +665,12 @@ elif page == "Breaks & Pickups":
 elif page == "Search Page":
     from search_page import search_page
     search_page()
+elif page == "GPS Tracking":
+    from gps_tracking_page import gps_tracking_page
+    gps_tracking_page()
+elif page == "Real-Time GPS":
+    from realtime_gps_monitoring import realtime_gps_monitoring_page
+    realtime_gps_monitoring_page()
 elif page == "Accident Analysis":
     from accident_analysis import accident_analysis_page
     accident_analysis_page()

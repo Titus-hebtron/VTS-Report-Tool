@@ -476,11 +476,12 @@ def save_idle_report(idle_df, uploaded_by):
     idle_df.columns = [c.lower() for c in idle_df.columns]
     idle_df['uploaded_by'] = uploaded_by
     idle_df['contractor_id'] = contractor_id
+    idle_df['uploaded_at'] = datetime.now()
 
     # Only keep columns that exist in the database table
     valid_columns = ['vehicle', 'idle_start', 'idle_end', 'idle_duration_min',
                      'location_address', 'latitude', 'longitude', 'description',
-                     'uploaded_by', 'contractor_id']
+                     'uploaded_by', 'uploaded_at', 'contractor_id']
     idle_df = idle_df[[col for col in valid_columns if col in idle_df.columns]]
 
     engine = get_sqlalchemy_engine()
@@ -490,7 +491,7 @@ def save_idle_report(idle_df, uploaded_by):
         print("❌ Error saving idle report:", e)
         traceback.print_exc()
 
-def get_idle_reports(limit=100):
+def get_idle_reports(limit=10000):
     """Fetch idle reports"""
     contractor_id = get_active_contractor()
     engine = get_sqlalchemy_engine()

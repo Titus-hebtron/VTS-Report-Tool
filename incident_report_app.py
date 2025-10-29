@@ -44,4 +44,4 @@ if uploaded_file:
         st.subheader('Uploaded Incident Images')
         for img in image_files:
             # Use upload time as timestamp (Streamlit does not provide EXIF info)
-            st.image(img, caption=f"Uploaded: {img.name}", use_column_width=True)
+            st.image(img, caption=f"Uploaded: {img.name}", use_container_width=True)

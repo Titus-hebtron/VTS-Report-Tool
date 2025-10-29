@@ -1,0 +1,10 @@
+{
+  "apiBaseUrl": "http://localhost:8000",
+  "deviceToken": "DEMO_DEVICE_TOKEN_REPLACE_ME",
+  "enableBackgroundLocationByDefault": true,
+  "backgroundLocationIntervalSeconds": 15,
+  "locationDistanceMeters": 10,
+  "s3PresignTimeoutSeconds": 3600,
+  "offlineQueueKey": "vts_offline_queue_v1",
+  "defaultPatrolVehicle": "KDK 825Y"
+}

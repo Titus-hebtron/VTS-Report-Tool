@@ -86,6 +86,35 @@ def get_vehicles(user: dict = Depends(verify_token)):
         vehicles = [{"id": row[0], "plate_number": row[1]} for row in result.fetchall()]
     return vehicles
 
+class PatrolLogRequest(BaseModel):
+    vehicle_id: int
+    latitude: float
+    longitude: float
+    timestamp: str
+    activity: str
+    speed: float
+    status: str = "online"
+
+@app.post("/patrol_logs")
+def create_patrol_log(log: PatrolLogRequest, user: dict = Depends(verify_token)):
+    engine = get_sqlalchemy_engine()
+    insert_query = """
+        INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity)
+        VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity)
+    """
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(insert_query), {
+                "vehicle_id": log.vehicle_id,
+                "timestamp": log.timestamp,
+                "latitude": log.latitude,
+                "longitude": log.longitude,
+                "activity": log.activity
+            })
+        return {"message": "Patrol log created successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create patrol log: {str(e)}")
+
 @app.get("/patrol_logs/{vehicle_id}")
 def get_patrol_logs(vehicle_id: int, user: dict = Depends(verify_token)):
     engine = get_sqlalchemy_engine()
@@ -98,6 +127,65 @@ def get_patrol_logs(vehicle_id: int, user: dict = Depends(verify_token)):
     with engine.begin() as conn:
         patrol_logs = pd.read_sql(logs_query, conn, params={"vehicle_id": vehicle_id})
     return patrol_logs.to_dict(orient="records")
+
+class IdleReportRequest(BaseModel):
+    vehicle: str
+    idle_start: str
+    location_address: str
+    latitude: float
+    longitude: float
+    description: str
+    contractor_id: str
+
+class IdleReportEndRequest(BaseModel):
+    vehicle: str
+    idle_end: str
+    idle_duration_min: float
+
+@app.post("/idle_reports")
+def create_idle_report(report: IdleReportRequest, user: dict = Depends(verify_token)):
+    engine = get_sqlalchemy_engine()
+    insert_query = """
+        INSERT INTO idle_reports (vehicle, idle_start, location_address, latitude, longitude, description, contractor_id, uploaded_by)
+        VALUES (:vehicle, :idle_start, :location_address, :latitude, :longitude, :description, :contractor_id, :uploaded_by)
+    """
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(insert_query), {
+                "vehicle": report.vehicle,
+                "idle_start": report.idle_start,
+                "location_address": report.location_address,
+                "latitude": report.latitude,
+                "longitude": report.longitude,
+                "description": report.description,
+                "contractor_id": report.contractor_id,
+                "uploaded_by": user["username"]
+            })
+        return {"message": "Idle report created successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create idle report: {str(e)}")
+
+@app.put("/idle_reports/end")
+def end_idle_report(report: IdleReportEndRequest, user: dict = Depends(verify_token)):
+    engine = get_sqlalchemy_engine()
+    update_query = """
+        UPDATE idle_reports
+        SET idle_end = :idle_end, idle_duration_min = :idle_duration_min
+        WHERE vehicle = :vehicle AND idle_end IS NULL
+        ORDER BY idle_start DESC LIMIT 1
+    """
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(text(update_query), {
+                "vehicle": report.vehicle,
+                "idle_end": report.idle_end,
+                "idle_duration_min": report.idle_duration_min
+            })
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="No active idle report found")
+        return {"message": "Idle report updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update idle report: {str(e)}")
 
 @app.get("/incidents")
 def get_incidents(user: dict = Depends(verify_token)):

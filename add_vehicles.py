@@ -8,6 +8,9 @@ from sqlalchemy import text
 def add_sample_vehicles():
     engine = get_sqlalchemy_engine()
 
+    # Note: The patrol cars being monitored through GPRS are the five vehicles from the two contractors:
+    # Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car)
+    # The recovery cars serve as additional slots for backup vehicles
     vehicles = [
         # Wizpro vehicles
         ('KDG 320Z', 'Wizpro'),

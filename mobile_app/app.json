@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "VTS Patrol App",
+    "slug": "vts-patrol-app",
+    "version": "1.0.0",
+    "platforms": ["android","ios","web"],
+    "sdkVersion": "48.0.0"
+  }
+}

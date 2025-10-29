@@ -4,6 +4,10 @@
 
 The GPS Report Tool is a comprehensive web-based application built with Streamlit for managing vehicle tracking system (VTS) data and generating various reports. It provides role-based access for different contractors to manage incident reports, analyze vehicle idle times, track breaks and pickups, and perform accident analysis.
 
+### Monitored Vehicles
+
+The patrol cars being monitored through GPRS are the five vehicles from the two contractors: Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car). The recovery cars serve as additional slots for backup vehicles, ensuring continuous coverage and redundancy in the vehicle tracking system. The real-time GPS monitoring focuses on these vehicles from Wizpro and Paschal contractors only.
+
 ## Table of Contents
 
 1. [Project Overview](#project-overview)
@@ -201,6 +205,14 @@ The application uses a custom calendar system for monthly reports:
 2. **Role Selection**: Your access level determines available features
 3. **Navigation**: Use the sidebar to navigate between different modules
 
+#### Login Page Screenshot
+![Login Page](screenshots/login_page.png)
+*Figure 1: Main login interface showing contractor selection and authentication fields*
+
+#### Main Dashboard Screenshot
+![Main Dashboard](screenshots/main_dashboard.png)
+*Figure 2: Main application dashboard with sidebar navigation and contractor selection*
+
 ### Incident Reporting
 
 1. Select "Incident Report" from the sidebar
@@ -210,26 +222,62 @@ The application uses a custom calendar system for monthly reports:
 5. Upload photos if available
 6. Submit the report
 
+#### Incident Report Form Screenshot
+![Incident Report Form](screenshots/incident_report_form.png)
+*Figure 3: Incident reporting interface with all required fields and photo upload capability*
+
+#### Incident Report Template Preview
+![Incident Report Template](screenshots/incident_report_template.png)
+*Figure 4: Generated Excel template showing incident details in professional format*
+
 ### Unified Idle/Parking Analyzer
 
 1. Select "Idle Time Analyzer" from the sidebar
 2. **System automatically detects file format** based on column structure:
-   - **Wizpro format**: Detected by "Status" and "Stop position" columns
-   - **Paschal format**: Detected by "Stop Duration" and "Address" columns
-   - **HTML files**: Automatically detected and parsed for both Wizpro and Paschal formats (GPS systems sometimes export HTML with .xls extension)
+    - **Wizpro format**: Detected by "Status" and "Stop position" columns
+    - **Paschal format**: Detected by "Stop Duration" and "Address" columns
+    - **HTML files**: Automatically detected and parsed for both Wizpro and Paschal formats (GPS systems sometimes export HTML with .xls extension)
 3. Upload Excel file (.xls/.xlsx) or HTML file - no manual format selection needed
 4. **Automatic processing**:
-   - Wizpro: Scans for "Status" column (with various naming variations), filters only "stopped" records, uses corresponding "Stop Position" data for location_address
-   - Paschal: Maps "Stop Duration" → `idle_duration_min` (parses formats like "1h42m49s"), "Address" → `location_address`
-   - HTML: Parses table data for idle records, identifying column headers by name with Wizpro detection prioritized over Paschal
-   - **HTML Address Parsing**: Extracts coordinates from Google Maps URLs (`q=-1.275198,36.812071`) and addresses from after `</a> - ` pattern
-   - **Vehicle identification**: Saves extracted vehicle names for data tracking
-   - **Debugging**: Shows available status values and filtering results for troubleshooting
-   - **Format Detection**: Wizpro indicators ('wizpro', 'stopped', 'stop position') checked before Paschal indicators
-   - **Coordinate Extraction**: Automatically parses latitude/longitude from HTML-formatted location data
+    - Wizpro: Scans for "Status" column (with various naming variations), filters only "stopped" records, uses corresponding "Stop Position" data for location_address
+    - Paschal: Maps "Stop Duration" → `idle_duration_min` (parses formats like "1h42m49s"), "Address" → `location_address`
+    - HTML: Parses table data for idle records, identifying column headers by name with Wizpro detection prioritized over Paschal
+    - **HTML Address Parsing**: Extracts coordinates from Google Maps URLs (`q=-1.275198,36.812071`) and addresses from after `</a> - ` pattern
+    - **Vehicle identification**: Saves extracted vehicle names for data tracking
+    - **Debugging**: Shows available status values and filtering results for troubleshooting
+    - **Format Detection**: Wizpro indicators ('wizpro', 'stopped', 'stop position') checked before Paschal indicators
+    - **Coordinate Extraction**: Automatically parses latitude/longitude from HTML-formatted location data
 5. View extracted records in clean table format
 6. Save all data to unified database table (filtered by your contractor)
 7. Download results as CSV
+
+#### Idle Time Analyzer Interface Screenshot
+![Idle Time Analyzer](screenshots/idle_time_analyzer.png)
+*Figure 5: Idle time analyzer showing file upload, automatic format detection, and data processing*
+
+#### Idle Reports View Screenshot
+![Idle Reports View](screenshots/idle_reports_view.png)
+*Figure 6: Saved idle reports interface with filtering and contractor-based access control*
+
+#### Code Example: Idle Time Analysis
+```python
+# Example of how the idle time analyzer processes Wizpro format
+def parse_wizpro_idle(df):
+    df.columns = df.columns.str.strip().str.lower()
+
+    # Filter for "stopped" status only
+    if 'status' in df.columns:
+        df = df[df['status'].str.lower().str.strip() == 'stopped']
+
+    # Extract duration and convert to minutes
+    df['idle_duration_min'] = pd.to_numeric(df['duration'], errors='coerce')
+
+    # Parse timestamps with dayfirst=True for DD/MM/YYYY format
+    df['idle_start'] = pd.to_datetime(df['start'], dayfirst=True, errors='coerce')
+    df['idle_end'] = pd.to_datetime(df['end'], dayfirst=True, errors='coerce')
+
+    return df[['vehicle', 'idle_start', 'idle_end', 'idle_duration_min', 'location']]
+```
 
 ### Paschal Parking Analyzer (Alternative)
 
@@ -259,11 +307,49 @@ The application uses a custom calendar system for monthly reports:
 2. Choose report type and apply filters
 3. View and export search results
 
+#### Search Page Interface Screenshot
+![Search Page](screenshots/search_page.png)
+*Figure 7: Search interface showing contractor-based filtering and data export options*
+
+#### Code Example: Contractor-Based Filtering
+```python
+# Example of contractor-based filtering in search_page.py
+contractor = st.session_state.get("contractor")
+if contractor and contractor.lower() in ['wizpro', 'paschal']:
+    contractor_id = 1 if contractor.lower() == 'wizpro' else 2
+    query += " AND contractor_id = ?"
+    params = params + (contractor_id,)
+```
+
 ### Vehicle Tracking
 
 1. Select a vehicle from the sidebar dropdown
 2. View patrol logs in table format
 3. Explore locations on the interactive map
+
+#### Vehicle Tracking Map Screenshot
+![Vehicle Tracking](screenshots/vehicle_tracking.png)
+*Figure 8: Interactive map showing vehicle patrol routes and locations*
+
+#### Code Example: Map Integration
+```python
+# Example of Folium map integration for vehicle tracking
+import folium
+from streamlit_folium import st_folium
+
+# Create map centered on vehicle location
+m = folium.Map(location=[latitude, longitude], zoom_start=12)
+
+# Add vehicle markers
+folium.Marker(
+    [row["latitude"], row["longitude"]],
+    popup=f"Time: {row['timestamp']}<br>Activity: {row['activity']}",
+    icon=folium.Icon(color="blue", icon="car", prefix="fa")
+).add_to(m)
+
+# Display in Streamlit
+st_folium(m, width="100%", height=500)
+```
 
 ### Accident Analysis
 
@@ -306,6 +392,42 @@ The application uses direct database connections rather than REST APIs. Key data
 - User verification through bcrypt password checking
 - Role-based access control
 
+### Code Example: Database Connection
+```python
+# Example from db_utils.py - Database connection setup
+def get_sqlalchemy_engine():
+    """Create and return SQLAlchemy engine for database operations"""
+    if USE_SQLITE:
+        engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})
+    else:
+        # PostgreSQL configuration
+        engine = create_engine(f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+    return engine
+
+def save_idle_report(idle_df, uploaded_by):
+    """Save multiple idle records using bulk insert"""
+    if idle_df.empty:
+        return
+    contractor_id = get_active_contractor()
+    idle_df = idle_df.copy()
+    idle_df.columns = [c.lower() for c in idle_df.columns]
+    idle_df['uploaded_by'] = uploaded_by
+    idle_df['contractor_id'] = contractor_id
+
+    # Only keep columns that exist in the database table
+    valid_columns = ['vehicle', 'idle_start', 'idle_end', 'idle_duration_min',
+                     'location_address', 'latitude', 'longitude', 'description',
+                     'uploaded_by', 'contractor_id']
+    idle_df = idle_df[[col for col in valid_columns if col in idle_df.columns]]
+
+    engine = get_sqlalchemy_engine()
+    try:
+        idle_df.to_sql('idle_reports', engine, if_exists='append', index=False)
+    except Exception as e:
+        print("❌ Error saving idle report:", e)
+        traceback.print_exc()
+```
+
 ---
 
 ## Troubleshooting
@@ -316,6 +438,26 @@ The application uses direct database connections rather than REST APIs. Key data
 - **Import Errors**: Ensure all dependencies are installed
 - **Permission Errors**: Check user roles and access permissions
 - **File Upload Issues**: Verify file formats and size limits
+
+### Contractor-Based Access Issues
+
+- **Can't see idle reports**: Ensure you're logged in with the correct contractor (Wizpro/Paschal)
+- **Search results empty**: Check that the selected contractor in sidebar matches your login contractor
+- **Date parsing errors**: The system uses DD/MM/YYYY format - ensure your data matches this format
+
+### Code Example: Debugging Contractor Access
+```python
+# Debug contractor access in session
+st.write("Current contractor:", st.session_state.get("contractor"))
+st.write("Contractor ID:", st.session_state.get("contractor_id"))
+st.write("User role:", st.session_state.get("role"))
+
+# Check database records for your contractor
+contractor_id = st.session_state.get("contractor_id")
+if contractor_id:
+    df = get_idle_reports_for_contractor(contractor_id)
+    st.write(f"Found {len(df)} records for contractor {contractor_id}")
+```
 
 ### Logs and Debugging
 
@@ -350,6 +492,75 @@ To create a PDF version of this documentation:
 ## License
 
 © 2025 Hebtron Technologies. All rights reserved.
+
+## Screenshots Directory Structure
+
+Create a `screenshots/` directory in your project root and add the following images:
+
+```
+screenshots/
+├── login_page.png              # Login interface
+├── main_dashboard.png          # Main app dashboard
+├── incident_report_form.png    # Incident reporting form
+├── incident_report_template.png # Excel template output
+├── idle_time_analyzer.png      # Idle analyzer interface
+├── idle_reports_view.png       # Saved idle reports view
+├── search_page.png             # Search and filtering interface
+└── vehicle_tracking.png        # Map view for vehicle tracking
+```
+
+## Project Preview Code Snippets
+
+### Main Application Entry Point
+```python
+# vts_report_tool.py - Main application
+import streamlit as st
+from db_utils import init_database_if_needed
+
+# Initialize database
+init_database_if_needed()
+
+# Main app logic with role-based routing
+if not st.session_state["login_state"]:
+    # Show login page
+    show_login_page()
+else:
+    # Show main application based on user role
+    show_main_app()
+```
+
+### Contractor-Based Data Filtering
+```python
+# Example from search_page.py
+def search_page():
+    # Get contractor from session
+    contractor = st.session_state.get("contractor")
+    if contractor and contractor.lower() in ['wizpro', 'paschal']:
+        contractor_id = 1 if contractor.lower() == 'wizpro' else 2
+        query += " AND contractor_id = ?"
+        params = params + (contractor_id,)
+
+    # Execute filtered query
+    df = pd.read_sql_query(query, engine, params=params)
+    return df
+```
+
+### Automatic File Format Detection
+```python
+# From idle_time_analyzer_page.py
+def detect_idle_format(df):
+    columns = df.columns.str.strip().str.lower()
+
+    # Wizpro indicators
+    wizpro_indicators = ['object', 'start', 'end', 'duration']
+    wizpro_score = sum(1 for col in wizpro_indicators if col in columns)
+
+    # Paschal indicators
+    paschal_indicators = ['start time', 'end time', 'stop duration']
+    paschal_score = sum(1 for col in paschal_indicators if col in columns)
+
+    return 'wizpro' if wizpro_score > paschal_score else 'paschal'
+```
 
 ## Contact Information
 

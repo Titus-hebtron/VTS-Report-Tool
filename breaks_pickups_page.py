@@ -7,7 +7,12 @@ from db_utils import get_sqlalchemy_engine
 from sqlalchemy import text
 import folium
 from streamlit_folium import st_folium
-from streamlit_autorefresh import st_autorefresh
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+    AUTOREFRESH_AVAILABLE = True
+except ImportError:
+    AUTOREFRESH_AVAILABLE = False
 
 
 
@@ -47,8 +52,9 @@ def get_vehicles_for_logged_in_contractor():
 def show_live_map_for_contractor(refresh_interval=5000):
     contractor = st.session_state['contractor']
 
-    # Auto-refresh the map
-    st_autorefresh(interval=refresh_interval, key="live_map_refresh")
+    # Auto-refresh the map (if available)
+    if AUTOREFRESH_AVAILABLE:
+        st_autorefresh(interval=refresh_interval, key="live_map_refresh")
 
     engine = get_sqlalchemy_engine()
     query = text("""

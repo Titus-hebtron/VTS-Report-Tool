@@ -166,7 +166,7 @@ def fill_incident_template(ws, row, index):
             if cell.value and isinstance(cell.value, str) and cell.value.endswith(':'):
                 cell.font = Font(bold=True)
             if cell.value:
-                cell.border = thin_border
+                cell.border = Border(left=Side(style='medium'), right=Side(style='medium'), top=Side(style='medium'), bottom=Side(style='medium'))
 
     # Add outer thick borders
     for r in range(1, 19):
@@ -240,6 +240,12 @@ def search_page():
                 query += " AND patrol_car = ?"
                 params = params + (vehicle,)
 
+            contractor = st.session_state.get("contractor")
+            if contractor and contractor.lower() in ['wizpro', 'paschal']:
+                contractor_id = 1 if contractor.lower() == 'wizpro' else 2
+                query += " AND contractor_id = ?"
+                params = params + (contractor_id,)
+
             if st.session_state["role"] == "re_admin":
                 contractor_id = st.session_state.get("active_contractor")
                 if contractor_id:
@@ -279,6 +285,13 @@ def search_page():
             if vehicle:
                 query += " AND vehicle = ?"
                 params = params + (vehicle,)
+
+            contractor = st.session_state.get("contractor")
+            if contractor and contractor.lower() in ['wizpro', 'paschal']:
+                contractor_id = 1 if contractor.lower() == 'wizpro' else 2
+                query += " AND contractor_id = ?"
+                params = params + (contractor_id,)
+
             try:
                 with engine.connect() as conn:
                     df = pd.read_sql_query(query, conn, params=params)
@@ -291,6 +304,13 @@ def search_page():
             if vehicle:
                 query += " AND vehicle = ?"
                 params = params + (vehicle,)
+
+            contractor = st.session_state.get("contractor")
+            if contractor and contractor.lower() in ['wizpro', 'paschal']:
+                contractor_id = 1 if contractor.lower() == 'wizpro' else 2
+                query += " AND contractor_id = ?"
+                params = params + (contractor_id,)
+
             try:
                 with engine.connect() as conn:
                     df = pd.read_sql_query(query, conn, params=params)
@@ -383,10 +403,12 @@ def search_page():
                                     current_row += 2
 
                 # --- DOWNLOAD BUTTON FOR EXCEL WORKBOOK ---
+                contractor_name = st.session_state.get("contractor", "unknown").capitalize()
+                date_range = f"{start_date}_to_{end_date}"
                 st.download_button(
                     label="⬇️ Download Excel Workbook",
                     data=output.getvalue(),
-                    file_name=f"{selected_option.lower()}_results_workbook.xlsx",
+                    file_name=f"{contractor_name}_{selected_option.lower()}_workbook_{date_range}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
 

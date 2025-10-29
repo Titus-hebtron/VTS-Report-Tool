@@ -15,8 +15,19 @@ def login():
         conn = engine.raw_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT id, password_hash, role FROM users WHERE contractor=%s AND username=%s",
-                    (contractor, username))
+        # First get contractor_id from contractors table
+        cur.execute("SELECT id FROM contractors WHERE name = %s", (contractor,))
+        contractor_row = cur.fetchone()
+        if not contractor_row:
+            st.error("❌ Invalid contractor")
+            cur.close()
+            conn.close()
+            return
+
+        contractor_id = contractor_row[0]
+
+        cur.execute("SELECT id, password_hash, role, contractor_id FROM users WHERE contractor_id=%s AND username=%s",
+                    (contractor_id, username))
         user = cur.fetchone()
 
         cur.close()
@@ -26,6 +37,7 @@ def login():
             st.session_state["logged_in"] = True
             st.session_state["role"] = user[2]
             st.session_state["contractor"] = contractor
+            st.session_state["contractor_id"] = user[3]
             st.success(f"✅ Logged in as {username} ({user[2]})")
         else:
             st.error("❌ Invalid login credentials")

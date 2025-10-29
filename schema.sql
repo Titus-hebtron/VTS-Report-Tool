@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS patrol_logs (
     latitude REAL,
     longitude REAL,
     activity TEXT,
+    status TEXT DEFAULT 'offline',
+    speed REAL DEFAULT 0.0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
 );

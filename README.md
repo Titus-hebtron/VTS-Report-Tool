@@ -1,8 +1,8 @@
-# GPS Report Tool
+# VTS Patrol & Incident Tool
 
 ## Project Overview
 
-The GPS Report Tool is a comprehensive web-based application built with Streamlit for managing vehicle tracking system (VTS) data and generating various reports. It provides role-based access for different contractors to manage incident reports, analyze vehicle idle times, track breaks and pickups, and perform accident analysis.
+The VTS Patrol & Incident Tool is a comprehensive web-based application built with Streamlit for managing vehicle tracking system (VTS) data and generating various reports. It provides role-based access for different contractors to manage incident reports, analyze vehicle idle times, track breaks and pickups, and perform accident analysis.
 
 ## Custom Calendar System
 
@@ -313,3 +313,23 @@ The application uses direct database connections rather than REST APIs. Key data
 Developed by Hebtron Technologies
 Email: hebtron25@gmail.com
 © 2025 Hebtron Technologies
+
+---
+
+# Repository components:
+- backend/ — FastAPI backend (presign S3, ingest batched/offline events)
+- mobile_app/ — mobile helpers & README (offline queue + presigned upload examples)
+- incident_report.py — Streamlit UI for manual & WhatsApp import (existing)
+
+## Quickstart (development)
+1. Copy `.env.sample` -> `.env` and fill AWS / token values.
+2. Backend: create a venv, install requirements and run:
+   python -m venv .venv
+   .venv\Scripts\activate (Windows) or source .venv/bin/activate
+   pip install -r backend/requirements.txt
+   uvicorn backend.main:app --reload --port 8000
+3. Mobile: follow mobile_app/README.md. Use the presign endpoint to upload images directly to S3 and use /api/events/batch to send queued events.
+
+## Security notes
+- Replace simple token auth in backend with real auth in production.
+- Use HTTPS in production and restrict presigned URL lifetimes/bucket policies.

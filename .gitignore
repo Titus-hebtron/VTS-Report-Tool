@@ -5,14 +5,24 @@ env/
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
-.Python
-*.so
-.coverage
-.pytest_cache/
-
+.env
+.venv/
+venv/
+.env.local
+# virtualenv
+.env/
+# macOS
+.DS_Store
+# logs
+*.log
+# node
+node_modules/
+# build artifacts
+dist/
+build/
 # IDE
 .vscode/
 .idea/
@@ -38,3 +48,15 @@ pickup_images/
 
 # Temporary
 temp_*.png
+
+# Runtime mobile config (do not commit credentials)
+mobile_app/config.json
+
+# Flutter / build artifacts
+mobile_app/build/
+mobile_app/.gradle/
+mobile_app/.dart_tool/
+mobile_app/.idea/
+mobile_app/android/app/debug.keystore
+mobile_app/ios/Pods/
+mobile_app/ios/Runner.xcworkspace/
