@@ -276,15 +276,60 @@ def cleanup_old_backups():
 def setup_google_drive_auth():
     """Setup Google Drive authentication (run this once manually)"""
     print("Setting up Google Drive authentication...")
-    print("You'll need to:")
-    print("1. Go to Google Cloud Console")
-    print("2. Create a project and enable Google Drive API")
-    print("3. Create OAuth2 credentials")
-    print("4. Download credentials.json and place it in the project root")
-    print("5. Run this script once to authenticate")
+    print("Checking for credentials.json...")
 
-    # This would require interactive authentication
-    # For now, we'll skip this and assume credentials are already set up
+    if os.path.exists('credentials.json'):
+        print("✅ credentials.json found!")
+        print("Attempting to authenticate with Google Drive...")
+
+        try:
+            from google.oauth2.credentials import Credentials
+            from googleapiclient.discovery import build
+            from google.auth.transport.requests import Request
+            import pickle
+
+            creds = None
+            token_path = 'token.pickle'
+
+            if os.path.exists(token_path):
+                with open(token_path, 'rb') as token:
+                    creds = pickle.load(token)
+
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    # Load credentials from file
+                    from google_auth_oauthlib.flow import InstalledAppFlow
+                    SCOPES = ['https://www.googleapis.com/auth/drive.file']
+                    flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+                    creds = flow.run_local_server(port=0)
+
+                # Save the credentials for the next run
+                with open(token_path, 'wb') as token:
+                    pickle.dump(creds, token)
+
+            # Test the connection
+            service = build('drive', 'v3', credentials=creds)
+            print("✅ Google Drive authentication successful!")
+            print("You can now run backups that will upload to Google Drive.")
+
+        except Exception as e:
+            print(f"❌ Authentication failed: {e}")
+            print("Please check your credentials.json file and try again.")
+            print("Make sure:")
+            print("- credentials.json is valid")
+            print("- Google Drive API is enabled in your project")
+            print("- OAuth consent screen is configured")
+
+    else:
+        print("❌ credentials.json not found!")
+        print("You'll need to:")
+        print("1. Go to Google Cloud Console (https://console.cloud.google.com/)")
+        print("2. Create a project and enable Google Drive API")
+        print("3. Create OAuth2 credentials (Desktop application)")
+        print("4. Download credentials.json and place it in the project root")
+        print("5. Run this script again to authenticate")
 
 def main():
     """Main function to run the backup scheduler"""
