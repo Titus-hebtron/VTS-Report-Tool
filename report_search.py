@@ -127,11 +127,11 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
     idle_query = """
         SELECT id, vehicle, idle_start, idle_end, idle_duration_min, description, location_address
         FROM idle_reports
-        WHERE DATE(idle_start) BETWEEN ? AND ?
+        WHERE DATE(idle_start) BETWEEN %s AND %s
     """
     params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
     if contractor_id:
-        idle_query += " AND contractor_id = ?"
+        idle_query += " AND contractor_id = %s"
         params += (contractor_id,)
     with engine.connect() as conn:
         idle_df = pd.read_sql_query(idle_query, conn, params=params)
@@ -153,15 +153,15 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
     inc_params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
     br_params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
     pk_params = (week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d'))
-    inc_query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ?"
-    br_query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
-    pk_query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
+    inc_query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN %s AND %s"
+    br_query = "SELECT * FROM breaks WHERE break_date BETWEEN %s AND %s"
+    pk_query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN %s AND %s"
     if contractor_id:
-        inc_query += " AND contractor_id = ?"
+        inc_query += " AND contractor_id = %s"
         inc_params += (contractor_id,)
-        br_query += " AND contractor_id = ?"
+        br_query += " AND contractor_id = %s"
         br_params += (contractor_id,)  # Use contractor ID for breaks
-        pk_query += " AND contractor_id = ?"
+        pk_query += " AND contractor_id = %s"
         pk_params += (contractor_id,)  # Use contractor ID for pickups
     with engine.connect() as conn:
         incidents_df = pd.read_sql_query(inc_query, conn, params=inc_params)
