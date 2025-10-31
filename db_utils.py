@@ -15,19 +15,18 @@ def adapt_datetime(dt):
 sqlite3.register_adapter(datetime, adapt_datetime)
 
 # ------------------- DATABASE CONFIG -------------------
-# Force SQLite for Streamlit Cloud compatibility
-USE_SQLITE = True  # Always use SQLite for Streamlit Cloud
+# Auto-detect database type based on environment
+# Use PostgreSQL if DATABASE_URL is set (production/Render), otherwise SQLite (development)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-if USE_SQLITE:
-    engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})
+if DATABASE_URL:
+    # Production: Use PostgreSQL from DATABASE_URL
+    USE_SQLITE = False
+    engine = create_engine(DATABASE_URL)
 else:
-    # PostgreSQL configuration
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = int(os.getenv("DB_PORT", 5432))
-    DB_NAME = os.getenv("DB_NAME", "postgres")
-    DB_USER = os.getenv("DB_USER", "postgres")
-    DB_PASS = os.getenv("DB_PASS", "Hebtron123")
-    engine = create_engine(f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+    # Development: Use SQLite
+    USE_SQLITE = True
+    engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})
 
 def get_connection():
     return engine.raw_connection()
