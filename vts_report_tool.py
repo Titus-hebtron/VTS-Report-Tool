@@ -96,6 +96,7 @@ def init_database_if_needed():
         st.error(f"❌ Database initialization failed: {e}")
 
 # Initialize database on app startup
+print("🚀 Starting VTS Report Tool...")
 init_database_if_needed()
 
 # PWA Support - Add manifest, meta tags, and service worker

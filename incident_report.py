@@ -738,7 +738,13 @@ def incident_report_page(patrol_vehicle_options=None):
                 if st.button("View Selected Image"):
                     images = get_incident_images(selected_id)
                     selected_img = next(img for img in images if img["image_name"] == img_name)
-                    st.image(selected_img["image_data"], caption=img_name, width='stretch')
+                    # Ensure image_data is proper bytes for Streamlit
+                    image_bytes = selected_img["image_data"]
+                    if isinstance(image_bytes, memoryview):
+                        image_bytes = bytes(image_bytes)
+                    elif not isinstance(image_bytes, bytes):
+                        image_bytes = bytes(image_bytes)
+                    st.image(image_bytes, caption=img_name, width='stretch')
             else:
                 st.info("No images uploaded for this incident.")
     else:

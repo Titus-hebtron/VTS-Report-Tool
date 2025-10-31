@@ -63,21 +63,31 @@ def init_database():
                 else:
                     # Execute schema for PostgreSQL (split by semicolon and execute each statement)
                     statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
-
+   
                     for statement in statements:
                         if statement and statement.upper().startswith('CREATE TABLE'):
+                            if not USE_SQLITE:
+                                statement = statement.replace('AUTOINCREMENT', 'SERIAL')
                             try:
                                 conn.execute(text(statement))
                                 table_name = statement.split('CREATE TABLE')[1].split('(')[0].strip()
                                 print(f"Created table: {table_name}")
                             except Exception as e:
                                 print(f"Warning creating table: {e}")
+                        elif statement and statement.upper().startswith('INSERT'):
+                            try:
+                                conn.execute(text(statement))
+                                print(f"Executed insert: {statement[:50]}...")
+                            except Exception as e:
+                                print(f"Warning executing insert: {e}")
 
                 print("All tables created successfully!")
 
                 # Add default users using direct SQL to avoid function call issues
                 # Note: We need to commit the table creation first before adding users
-                conn.commit()
+                # For PostgreSQL, we don't need to commit here as we're in a transaction
+                if USE_SQLITE:
+                    conn.commit()
 
                 # Add default users directly using a new connection
                 users_data = [
@@ -89,36 +99,38 @@ def init_database():
                     ('avators_user', 'Pass@12345', 'Avators User', 4, 'contractor'),
                 ]
 
-                # Use a new connection for user insertion
-                with engine.begin() as user_conn:
-                    for username, plain_password, name, contractor_id, role in users_data:
-                        hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
-                        if USE_SQLITE:
-                            user_conn.execute(text("""
-                                INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id)
-                                VALUES (:username, :password_hash, :role, :contractor_id)
-                            """), {
-                                "username": username,
-                                "password_hash": hashed,
-                                "role": role,
-                                "contractor_id": contractor_id
-                            })
-                        else:
-                            user_conn.execute(text("""
-                                INSERT INTO users (username, password_hash, role, contractor_id)
-                                VALUES (:username, :password_hash, :role, :contractor_id)
-                                ON CONFLICT (username) DO NOTHING
-                            """), {
-                                "username": username,
-                                "password_hash": hashed,
-                                "role": role,
-                                "contractor_id": contractor_id
-                            })
+                # Use the same connection for user insertion
+                for username, plain_password, name, contractor_id, role in users_data:
+                    hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
+                    if USE_SQLITE:
+                        conn.execute(text("""
+                            INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id)
+                            VALUES (:username, :password_hash, :role, :contractor_id)
+                        """), {
+                            "username": username,
+                            "password_hash": hashed,
+                            "role": role,
+                            "contractor_id": contractor_id
+                        })
+                    else:
+                        conn.execute(text("""
+                            INSERT INTO users (username, password_hash, role, contractor_id)
+                            VALUES (:username, :password_hash, :role, :contractor_id)
+                            ON CONFLICT (username) DO NOTHING
+                        """), {
+                            "username": username,
+                            "password_hash": hashed,
+                            "role": role,
+                            "contractor_id": contractor_id
+                        })
 
                 print("Default users added successfully!")
 
             else:
                 print("Database tables already exist")
+
+        # Ensure database initialization runs before any operations
+        print("✅ Database initialization completed successfully")
 
     except Exception as e:
         print(f"Database initialization failed: {e}")
@@ -508,13 +520,19 @@ def save_incident_report(data, uploaded_by="Unknown"):
 def save_incident_image(incident_id, image_bytes, image_name):
     engine = get_sqlalchemy_engine()
 
+    # Ensure image_bytes is proper bytes type
+    if isinstance(image_bytes, memoryview):
+        image_bytes = bytes(image_bytes)
+    elif not isinstance(image_bytes, bytes):
+        image_bytes = bytes(image_bytes)
+
     with engine.begin() as conn:
         conn.execute(text("""
             INSERT INTO incident_images (incident_id, image_data, image_name)
             VALUES (:incident_id, :image_data, :image_name)
         """), {
             "incident_id": incident_id,
-            "image_data": image_bytes,  # SQLite can handle bytes directly
+            "image_data": image_bytes,  # Now guaranteed to be bytes
             "image_name": image_name
         })
 
@@ -545,19 +563,26 @@ def get_incident_images(report_id, only_meta=False):
     with engine.begin() as conn:
         if only_meta:
             query = text("""
-                SELECT id, image_name 
-                FROM incident_images 
+                SELECT id, image_name
+                FROM incident_images
                 WHERE incident_id = :incident_id
             """)
             rows = conn.execute(query, {"incident_id": report_id}).mappings().all()
             return rows
         else:
             query = text("""
-                SELECT id, image_name, image_data 
-                FROM incident_images 
+                SELECT id, image_name, image_data
+                FROM incident_images
                 WHERE incident_id = :incident_id
             """)
             rows = conn.execute(query, {"incident_id": report_id}).mappings().all()
+            # Ensure image_data is proper bytes for all database types
+            for row in rows:
+                if row["image_data"] is not None:
+                    if isinstance(row["image_data"], memoryview):
+                        row["image_data"] = bytes(row["image_data"])
+                    elif not isinstance(row["image_data"], bytes):
+                        row["image_data"] = bytes(row["image_data"])
             return rows
 # -------------------------------------------------------
 

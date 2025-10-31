@@ -9,7 +9,9 @@ from sqlalchemy import text
 import pandas as pd
 
 # Initialize database on startup
+print("🔄 Initializing database...")
 init_database()
+print("✅ Database ready for operations")
 
 app = FastAPI(title="VTS Report Tool API")
 
