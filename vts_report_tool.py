@@ -570,12 +570,21 @@ if selected_vehicle:
     if vehicle_id:
         engine = get_sqlalchemy_engine()
         with engine.begin() as conn:
-            patrol_logs = pd.read_sql("""
-                SELECT timestamp, latitude, longitude, activity
-                FROM patrol_logs
-                WHERE vehicle_id = %s
-                ORDER BY timestamp DESC
-            """, conn, params=(vehicle_id,))
+            # Check if patrol_logs table exists first
+            try:
+                patrol_logs = pd.read_sql("""
+                    SELECT timestamp, latitude, longitude, activity
+                    FROM patrol_logs
+                    WHERE vehicle_id = %s
+                    ORDER BY timestamp DESC
+                """, conn, params=(vehicle_id,))
+            except Exception as e:
+                if "does not exist" in str(e):
+                    st.info(f"Patrol logs table not found. Please ensure database is properly initialized.")
+                    patrol_logs = pd.DataFrame()  # Empty dataframe
+                else:
+                    st.error(f"Error loading patrol logs: {e}")
+                    patrol_logs = pd.DataFrame()  # Empty dataframe
 
         if patrol_logs.empty:
             st.info(f"No patrol logs found for {selected_vehicle}")
