@@ -767,6 +767,25 @@ def incident_report_page(patrol_vehicle_options=None):
                             if len(text_content) > 0 and len(text_content) < 500:
                                 st.info("Content appears to be text data:")
                                 st.code(text_content[:500])
+
+                                # Check if it looks like hex data that needs decoding
+                                if all(c in '0123456789abcdefABCDEF' for c in text_content.strip()):
+                                    st.info("This looks like hex-encoded data. Try decoding it:")
+                                    try:
+                                        decoded_bytes = bytes.fromhex(text_content.strip())
+                                        st.code(f"Decoded first 100 bytes: {decoded_bytes[:100].hex()}")
+                                        # Try to display the decoded image
+                                        try:
+                                            from PIL import Image
+                                            import io
+                                            Image.open(io.BytesIO(decoded_bytes))
+                                            st.success("✅ Hex-decoded data is valid image! Displaying:")
+                                            st.image(decoded_bytes, caption=f"{img_name} (hex-decoded)", width='stretch')
+                                            continue  # Skip the error message
+                                        except Exception as decode_e:
+                                            st.error(f"❌ Hex-decoded data is not a valid image: {decode_e}")
+                                    except Exception as hex_e:
+                                        st.error(f"❌ Could not decode hex data: {hex_e}")
                         except:
                             pass
             else:
