@@ -340,8 +340,6 @@ def backup_management_page():
                         import smtplib
                         from email.mime.text import MIMEText
                         from email.mime.multipart import MIMEMultipart
-                        from email.mime.base import MIMEBase
-                        from email import encoders
 
                         # Google Drive imports
                         from google.oauth2.credentials import Credentials
