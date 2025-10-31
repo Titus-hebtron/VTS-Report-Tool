@@ -569,12 +569,12 @@ if selected_vehicle:
     vehicle_id = next((v["id"] for v in vehicle_list if v["plate_number"] == selected_vehicle), None)
     if vehicle_id:
         engine = get_sqlalchemy_engine()
-        logs_query = """
+        logs_query = text("""
             SELECT timestamp, latitude, longitude, activity
             FROM patrol_logs
             WHERE vehicle_id = :vehicle_id
             ORDER BY timestamp DESC
-        """
+        """)
         with engine.begin() as conn:
             patrol_logs = pd.read_sql(logs_query, conn, params={"vehicle_id": vehicle_id})
 
