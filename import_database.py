@@ -88,8 +88,10 @@ def migrate_data():
 
         # Test connections
         print("Testing database connections...")
-        sqlite_engine.execute(text("SELECT 1"))
-        postgres_engine.execute(text("SELECT 1"))
+        with sqlite_engine.begin() as conn:
+            conn.execute(text("SELECT 1"))
+        with postgres_engine.begin() as conn:
+            conn.execute(text("SELECT 1"))
         print("✅ Both databases connected successfully")
 
         # Create PostgreSQL schema
