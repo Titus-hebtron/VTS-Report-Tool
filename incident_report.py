@@ -738,7 +738,7 @@ def incident_report_page(patrol_vehicle_options=None):
                 if st.button("View Selected Image"):
                     images = get_incident_images(selected_id)
                     selected_img = next(img for img in images if img["image_name"] == img_name)
-                    st.image(bytes(selected_img["image_data"]), caption=img_name, width='stretch')
+                    st.image(selected_img["image_data"], caption=img_name, width='stretch')
             else:
                 st.info("No images uploaded for this incident.")
     else:
