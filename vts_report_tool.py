@@ -57,11 +57,20 @@ def init_database_if_needed():
                     # Execute schema for PostgreSQL (split by semicolon and execute each statement)
                     statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
                     for statement in statements:
-                        if statement:
+                        if statement and not statement.startswith('INSERT'):  # Skip INSERT statements for now
                             try:
                                 conn.execute(text(statement))
                             except Exception as e:
                                 st.warning(f"Skipping statement: {e}")
+
+                    # Now execute INSERT statements after tables are created
+                    insert_statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and stmt.strip().startswith('INSERT')]
+                    for statement in insert_statements:
+                        if statement:
+                            try:
+                                conn.execute(text(statement))
+                            except Exception as e:
+                                st.warning(f"Skipping INSERT statement: {e}")
 
                 # Add default contractors
                 from db_utils import add_user
