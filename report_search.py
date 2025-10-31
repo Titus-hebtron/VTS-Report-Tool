@@ -401,7 +401,7 @@ def report_search_page():
     # Get available vehicles (normalized license plates)
     with engine.connect() as conn:
         if contractor_id:
-            vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = ?"
+            vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = %s"
             vehicle_options_df = pd.read_sql_query(vehicle_options_query, conn, params=(contractor_id,))
         else:
             vehicle_options_query = "SELECT DISTINCT vehicle FROM idle_reports"
@@ -448,7 +448,7 @@ def report_search_page():
         period_name = f"{start_date.strftime('%Y-%m-%d')}_to_{period_end.strftime('%Y-%m-%d')}"
         output = io.BytesIO()
         # Get list of all unique license plates for the contractor (normalized)
-        vehicle_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = ?"
+        vehicle_query = "SELECT DISTINCT vehicle FROM idle_reports WHERE contractor_id = %s"
         params = (contractor_id,)
         with engine.connect() as conn:
             vehicles_df = pd.read_sql_query(vehicle_query, conn, params=params)
