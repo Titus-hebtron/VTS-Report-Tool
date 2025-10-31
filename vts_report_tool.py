@@ -63,6 +63,9 @@ def init_database_if_needed():
                             except Exception as e:
                                 st.warning(f"Skipping statement: {e}")
 
+                    # Commit the table creation before inserting data
+                    conn.commit()
+
                     # Now execute INSERT statements after tables are created
                     insert_statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and stmt.strip().startswith('INSERT')]
                     for statement in insert_statements:
