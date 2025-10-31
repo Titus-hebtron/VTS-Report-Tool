@@ -581,8 +581,21 @@ def get_incident_images(report_id, only_meta=False):
                 if row["image_data"] is not None:
                     if isinstance(row["image_data"], memoryview):
                         row["image_data"] = bytes(row["image_data"])
+                    elif isinstance(row["image_data"], str):
+                        # Handle string data - might be base64 or raw bytes as string
+                        try:
+                            # Try to decode as UTF-8 bytes
+                            row["image_data"] = row["image_data"].encode('latin-1')
+                        except (UnicodeEncodeError, UnicodeDecodeError):
+                            # If that fails, assume it's already bytes-like
+                            row["image_data"] = bytes(row["image_data"], encoding='latin-1')
                     elif not isinstance(row["image_data"], bytes):
-                        row["image_data"] = bytes(row["image_data"])
+                        # For other types, try to convert to bytes
+                        try:
+                            row["image_data"] = bytes(row["image_data"])
+                        except TypeError:
+                            # If conversion fails, convert to string first then encode
+                            row["image_data"] = str(row["image_data"]).encode('latin-1')
             return rows
 # -------------------------------------------------------
 
