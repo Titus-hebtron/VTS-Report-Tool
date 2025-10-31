@@ -38,7 +38,7 @@ def init_database_if_needed():
             if USE_SQLITE:
                 result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
             else:
-                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='users'"))
+                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='users' AND table_schema='public'"))
             table_exists = result.fetchone() is not None
 
             if not table_exists:
@@ -55,10 +55,13 @@ def init_database_if_needed():
                     cursor.close()
                 else:
                     # Execute schema for PostgreSQL (split by semicolon and execute each statement)
-                    statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip()]
+                    statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
                     for statement in statements:
                         if statement:
-                            conn.execute(text(statement))
+                            try:
+                                conn.execute(text(statement))
+                            except Exception as e:
+                                st.warning(f"Skipping statement: {e}")
 
                 # Add default contractors
                 from db_utils import add_user
@@ -86,8 +89,12 @@ def init_database_if_needed():
             # Use raw cursor for vehicle insertion to avoid SQLAlchemy parameter issues
             cursor = conn.connection.cursor()
             for plate_number, contractor in vehicles:
-                cursor.execute("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)",
-                              (plate_number, contractor))
+                if USE_SQLITE:
+                    cursor.execute("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)",
+                                  (plate_number, contractor))
+                else:
+                    cursor.execute("INSERT INTO vehicles (plate_number, contractor) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                                  (plate_number, contractor))
 
             # Add sample idle reports for testing (only if table is empty)
             try:
