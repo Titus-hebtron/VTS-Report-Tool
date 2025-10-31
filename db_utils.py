@@ -28,6 +28,102 @@ else:
     USE_SQLITE = True
     engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})
 
+# ------------------- DATABASE INITIALIZATION -------------------
+def init_database():
+    """Initialize database tables if they don't exist"""
+    print("Checking database initialization...")
+
+    # Log database URL for debugging
+    if DATABASE_URL:
+        print(f"Connected to: {DATABASE_URL.replace(DATABASE_URL.split('://')[1].split('@')[0], '***:***@')}")
+    else:
+        print("Using SQLite database: vts_database.db")
+
+    try:
+        with engine.begin() as conn:
+            # Check if users table exists (works for both SQLite and PostgreSQL)
+            if USE_SQLITE:
+                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+            else:
+                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='users' AND table_schema='public'"))
+            table_exists = result.fetchone() is not None
+
+            if not table_exists:
+                print("Creating database tables...")
+
+                # Read schema file and create tables
+                with open('schema.sql', 'r') as f:
+                    sql = f.read()
+
+                if USE_SQLITE:
+                    # Execute schema using executescript for multiple statements (SQLite)
+                    cursor = conn.connection.cursor()
+                    cursor.executescript(sql)
+                    cursor.close()
+                else:
+                    # Execute schema for PostgreSQL (split by semicolon and execute each statement)
+                    statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
+
+                    for statement in statements:
+                        if statement and statement.upper().startswith('CREATE TABLE'):
+                            try:
+                                conn.execute(text(statement))
+                                table_name = statement.split('CREATE TABLE')[1].split('(')[0].strip()
+                                print(f"Created table: {table_name}")
+                            except Exception as e:
+                                print(f"Warning creating table: {e}")
+
+                print("All tables created successfully!")
+
+                # Add default users using direct SQL to avoid function call issues
+                # Note: We need to commit the table creation first before adding users
+                conn.commit()
+
+                # Add default users directly using a new connection
+                users_data = [
+                    ('admin', 'Pass@12345', 'Administrator', 3, 're_admin'),
+                    ('wizpro_admin', 'Pass@12345', 'Wizpro Admin', 1, 'admin'),
+                    ('paschal_admin', 'Pass@12345', 'Paschal Admin', 2, 'admin'),
+                    ('wizpro_user', 'Pass@12345', 'Wizpro User', 1, 'contractor'),
+                    ('paschal_user', 'Pass@12345', 'Paschal User', 2, 'contractor'),
+                    ('avators_user', 'Pass@12345', 'Avators User', 4, 'contractor'),
+                ]
+
+                # Use a new connection for user insertion
+                with engine.begin() as user_conn:
+                    for username, plain_password, name, contractor_id, role in users_data:
+                        hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
+                        if USE_SQLITE:
+                            user_conn.execute(text("""
+                                INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id)
+                                VALUES (:username, :password_hash, :role, :contractor_id)
+                            """), {
+                                "username": username,
+                                "password_hash": hashed,
+                                "role": role,
+                                "contractor_id": contractor_id
+                            })
+                        else:
+                            user_conn.execute(text("""
+                                INSERT INTO users (username, password_hash, role, contractor_id)
+                                VALUES (:username, :password_hash, :role, :contractor_id)
+                                ON CONFLICT (username) DO NOTHING
+                            """), {
+                                "username": username,
+                                "password_hash": hashed,
+                                "role": role,
+                                "contractor_id": contractor_id
+                            })
+
+                print("Default users added successfully!")
+
+            else:
+                print("Database tables already exist")
+
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
+        raise
+
 def get_connection():
     return engine.raw_connection()
 

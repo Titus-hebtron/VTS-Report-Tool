@@ -4,9 +4,12 @@ from pydantic import BaseModel
 from jose import jwt
 import bcrypt
 from datetime import datetime, timedelta
-from db_utils import get_sqlalchemy_engine, get_contractor_id
+from db_utils import get_sqlalchemy_engine, get_contractor_id, init_database
 from sqlalchemy import text
 import pandas as pd
+
+# Initialize database on startup
+init_database()
 
 app = FastAPI(title="VTS Report Tool API")
 

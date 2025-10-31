@@ -26,73 +26,21 @@ st.set_page_config(
 # ---------------- DATABASE INITIALIZATION ----------------
 def init_database_if_needed():
     """Initialize database tables if they don't exist"""
-    from db_utils import get_sqlalchemy_engine, USE_SQLITE
-    from sqlalchemy import text
-
-    engine = get_sqlalchemy_engine()
+    from db_utils import init_database
 
     # Initialize database tables and data
     try:
+        init_database()
+
+        # Always ensure vehicles exist (in case they were deleted or missing)
+        # Note: The patrol cars being monitored through GPRS are the five vehicles from the two contractors:
+        # Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car)
+        # The recovery cars serve as additional slots for backup vehicles
+        from db_utils import get_sqlalchemy_engine, USE_SQLITE
+        from sqlalchemy import text
+
+        engine = get_sqlalchemy_engine()
         with engine.begin() as conn:
-            # Check if users table exists (works for both SQLite and PostgreSQL)
-            if USE_SQLITE:
-                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
-            else:
-                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='users' AND table_schema='public'"))
-            table_exists = result.fetchone() is not None
-
-            if not table_exists:
-                # Tables don't exist, initialize database
-                st.info("🔄 Initializing database...")
-
-                with open('schema.sql', 'r') as f:
-                    sql = f.read()
-
-                if USE_SQLITE:
-                    # Execute schema using executescript for multiple statements (SQLite)
-                    cursor = conn.connection.cursor()
-                    cursor.executescript(sql)
-                    cursor.close()
-                else:
-                    # Execute schema for PostgreSQL (split by semicolon and execute each statement)
-                    statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
-                    for statement in statements:
-                        if statement and not statement.startswith('INSERT'):  # Skip INSERT statements for now
-                            try:
-                                conn.execute(text(statement))
-                            except Exception as e:
-                                st.warning(f"Skipping statement: {e}")
-
-                    # Commit the table creation before inserting data
-                    conn.commit()
-
-                    # Now execute INSERT statements after tables are created
-                    insert_statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and stmt.strip().startswith('INSERT')]
-                    for statement in insert_statements:
-                        if statement:
-                            try:
-                                conn.execute(text(statement))
-                            except Exception as e:
-                                st.warning(f"Skipping INSERT statement: {e}")
-
-                # Add default contractors
-                from db_utils import add_user
-                add_user('admin', 'Pass@12345', 'Administrator', contractor_id=3, role='re_admin')
-                add_user('wizpro_admin', 'Pass@12345', 'Wizpro Admin', contractor_id=1, role='admin')
-                add_user('paschal_admin', 'Pass@12345', 'Paschal Admin', contractor_id=2, role='admin')
-                add_user('wizpro_user', 'Pass@12345', 'Wizpro User', contractor_id=1, role='contractor')
-                add_user('paschal_user', 'Pass@12345', 'Paschal User', contractor_id=2, role='contractor')
-                add_user('avators_user', 'Pass@12345', 'Avators User', contractor_id=4, role='contractor')
-
-                st.success("✅ Database initialized successfully!")
-
-            # Note: Column additions are handled dynamically in the GPS monitoring page
-            # to ensure compatibility with existing databases
-
-            # Always ensure vehicles exist (in case they were deleted or missing)
-            # Note: The patrol cars being monitored through GPRS are the five vehicles from the two contractors:
-            # Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car)
-            # The recovery cars serve as additional slots for backup vehicles
             vehicles = [
                 ('KDG 320Z', 'Wizpro'), ('KDS 374F', 'Wizpro'), ('KDK 825Y', 'Wizpro'), ('Replacement Car', 'Wizpro'),
                 ('KDC 873G', 'Paschal'), ('KDD 500X', 'Paschal'), ('Replacement Car', 'Paschal'),

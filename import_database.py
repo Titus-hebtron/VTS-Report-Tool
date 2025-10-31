@@ -41,7 +41,7 @@ def create_postgres_schema(engine):
                 except Exception as e:
                     print(f"Warning: {e}")
 
-    print("✅ PostgreSQL schema created")
+    print("PostgreSQL schema created successfully")
 
 def migrate_table_data(sqlite_engine, postgres_engine, table_name, column_mappings=None):
     """Migrate data from SQLite table to PostgreSQL table"""
@@ -71,14 +71,14 @@ def migrate_table_data(sqlite_engine, postgres_engine, table_name, column_mappin
 
         # Insert into PostgreSQL
         df.to_sql(table_name, postgres_engine, if_exists='append', index=False)
-        print(f"  ✅ Migrated {len(df)} rows to {table_name}")
+        print(f"  Migrated {len(df)} rows to {table_name}")
 
     except Exception as e:
         print(f"  ❌ Error migrating {table_name}: {e}")
 
 def migrate_data():
     """Main migration function"""
-    print("🚀 Starting database migration from SQLite to PostgreSQL")
+    print("Starting database migration from SQLite to PostgreSQL")
     print("=" * 60)
 
     try:
@@ -115,14 +115,14 @@ def migrate_data():
             migrate_table_data(sqlite_engine, postgres_engine, table)
 
         print("\n" + "=" * 60)
-        print("✅ Database migration completed successfully!")
-        print("\n📋 Summary:")
+        print("Database migration completed successfully!")
+        print("\nSummary:")
         print("- All tables created in PostgreSQL")
         print("- All data migrated from SQLite")
         print("- Your production database is now ready!")
 
     except Exception as e:
-        print(f"\n❌ Migration failed: {e}")
+        print(f"\nMigration failed: {e}")
         print("\n🔧 Troubleshooting:")
         print("1. Make sure DATABASE_URL environment variable is set")
         print("2. Check that vts_database.db exists in the current directory")

@@ -16,7 +16,7 @@ def get_postgres_engine():
 
 def create_tables():
     """Create all tables in PostgreSQL"""
-    print("🔧 Creating all tables in PostgreSQL...")
+    print("Creating all tables in PostgreSQL...")
 
     engine = get_postgres_engine()
 
@@ -33,11 +33,11 @@ def create_tables():
                 try:
                     conn.execute(text(statement))
                     table_name = statement.split('CREATE TABLE')[1].split('(')[0].strip()
-                    print(f"✅ Created table: {table_name}")
+                    print(f"Created table: {table_name}")
                 except Exception as e:
                     print(f"⚠️  Warning creating table: {e}")
 
-    print("✅ All tables created successfully!")
+    print("All tables created successfully!")
 
 if __name__ == "__main__":
     create_tables()
