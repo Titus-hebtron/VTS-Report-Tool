@@ -171,7 +171,7 @@ CREATE TABLE IF NOT EXISTS accident_reports_images (
 );
 
 -- Insert default contractors (only if table is empty)
-INSERT OR IGNORE INTO contractors (name) VALUES ('Wizpro');
-INSERT OR IGNORE INTO contractors (name) VALUES ('Paschal');
-INSERT OR IGNORE INTO contractors (name) VALUES ('RE Office');
-INSERT OR IGNORE INTO contractors (name) VALUES ('Avators');
+INSERT INTO contractors (name) VALUES ('Wizpro') ON CONFLICT DO NOTHING;
+INSERT INTO contractors (name) VALUES ('Paschal') ON CONFLICT DO NOTHING;
+INSERT INTO contractors (name) VALUES ('RE Office') ON CONFLICT DO NOTHING;
+INSERT INTO contractors (name) VALUES ('Avators') ON CONFLICT DO NOTHING;
