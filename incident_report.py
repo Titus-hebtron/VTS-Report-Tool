@@ -781,7 +781,8 @@ def incident_report_page(patrol_vehicle_options=None):
                                             Image.open(io.BytesIO(decoded_bytes))
                                             st.success("✅ Hex-decoded data is valid image! Displaying:")
                                             st.image(decoded_bytes, caption=f"{img_name} (hex-decoded)", width='stretch')
-                                            continue  # Skip the error message
+                                            # Successfully displayed, so we can break out of the error handling
+                                            break
                                         except Exception as decode_e:
                                             st.error(f"❌ Hex-decoded data is not a valid image: {decode_e}")
                                     except Exception as hex_e:
