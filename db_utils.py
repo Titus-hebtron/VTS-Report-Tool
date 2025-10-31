@@ -559,6 +559,7 @@ def get_recent_incident_reports(limit=20):
     return df
 
 def get_incident_images(report_id, only_meta=False):
+    import base64
     engine = get_sqlalchemy_engine()
     with engine.begin() as conn:
         if only_meta:
@@ -575,30 +576,39 @@ def get_incident_images(report_id, only_meta=False):
                 FROM incident_images
                 WHERE incident_id = :incident_id
             """)
-            rows = conn.execute(query, {"incident_id": report_id}).mappings().all()
-            # Ensure image_data is proper bytes for all database types
-            # Convert RowMapping to dict to allow item assignment
+            result = conn.execute(query, {"incident_id": report_id}).mappings().all()
+
+            # Robust image data handling for all cases (binary, base64, or string-encoded)
             processed_rows = []
-            for row in rows:
+            for row in result:
                 row_dict = dict(row)
-                if row_dict["image_data"] is not None:
-                    if isinstance(row_dict["image_data"], memoryview):
-                        row_dict["image_data"] = bytes(row_dict["image_data"])
-                    elif isinstance(row_dict["image_data"], str):
-                        # Handle string data - might be base64 or raw bytes as string
+                image_data = row_dict["image_data"]
+
+                # Handle different data types robustly
+                if image_data is not None:
+                    if isinstance(image_data, str):
                         try:
-                            # Try to decode as UTF-8 bytes
-                            row_dict["image_data"] = row_dict["image_data"].encode('latin-1')
-                        except (UnicodeEncodeError, UnicodeDecodeError):
-                            # If that fails, assume it's already bytes-like
-                            row_dict["image_data"] = bytes(row_dict["image_data"], encoding='latin-1')
-                    elif not isinstance(row_dict["image_data"], bytes):
-                        # For other types, try to convert to bytes
+                            # Try base64 decoding first
+                            image_bytes = base64.b64decode(image_data)
+                        except Exception:
+                            # If not base64, treat as latin-1 encoded bytes stored as text
+                            image_bytes = image_data.encode('latin-1')
+                    elif isinstance(image_data, memoryview):
+                        # PostgreSQL returns BLOB as memoryview
+                        image_bytes = bytes(image_data)
+                    elif isinstance(image_data, bytes):
+                        # Already bytes
+                        image_bytes = image_data
+                    else:
+                        # For other types, convert to bytes
                         try:
-                            row_dict["image_data"] = bytes(row_dict["image_data"])
+                            image_bytes = bytes(image_data)
                         except TypeError:
-                            # If conversion fails, convert to string first then encode
-                            row_dict["image_data"] = str(row_dict["image_data"]).encode('latin-1')
+                            # Last resort: convert to string then encode
+                            image_bytes = str(image_data).encode('latin-1')
+
+                    row_dict["image_data"] = image_bytes
+
                 processed_rows.append(row_dict)
             return processed_rows
 # -------------------------------------------------------
