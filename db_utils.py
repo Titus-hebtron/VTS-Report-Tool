@@ -587,12 +587,26 @@ def get_incident_images(report_id, only_meta=False):
                 # Handle different data types robustly
                 if image_data is not None:
                     if isinstance(image_data, str):
-                        try:
-                            # Try base64 decoding first
-                            image_bytes = base64.b64decode(image_data)
-                        except Exception:
-                            # If not base64, treat as latin-1 encoded bytes stored as text
-                            image_bytes = image_data.encode('latin-1')
+                        # Check if it's a string representation of bytes (like '\xff\xd8\xff...')
+                        if image_data.startswith('\\x') or (len(image_data) > 0 and image_data[0] == '\\' and 'x' in image_data[:10]):
+                            # This is a string representation of bytes, convert it back
+                            try:
+                                # Remove the surrounding quotes if present and evaluate as Python literal
+                                import ast
+                                if image_data.startswith(("'", '"')) and image_data.endswith(("'", '"')):
+                                    image_data = image_data[1:-1]
+                                # Use ast.literal_eval to safely evaluate the string representation
+                                image_bytes = ast.literal_eval(f"b'{image_data}'")
+                            except (ValueError, SyntaxError):
+                                # Fallback: try to decode as latin-1
+                                image_bytes = image_data.encode('latin-1')
+                        else:
+                            try:
+                                # Try base64 decoding first
+                                image_bytes = base64.b64decode(image_data)
+                            except Exception:
+                                # If not base64, treat as latin-1 encoded bytes stored as text
+                                image_bytes = image_data.encode('latin-1')
                     elif isinstance(image_data, memoryview):
                         # PostgreSQL returns BLOB as memoryview
                         image_bytes = bytes(image_data)
