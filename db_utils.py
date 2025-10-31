@@ -577,26 +577,30 @@ def get_incident_images(report_id, only_meta=False):
             """)
             rows = conn.execute(query, {"incident_id": report_id}).mappings().all()
             # Ensure image_data is proper bytes for all database types
+            # Convert RowMapping to dict to allow item assignment
+            processed_rows = []
             for row in rows:
-                if row["image_data"] is not None:
-                    if isinstance(row["image_data"], memoryview):
-                        row["image_data"] = bytes(row["image_data"])
-                    elif isinstance(row["image_data"], str):
+                row_dict = dict(row)
+                if row_dict["image_data"] is not None:
+                    if isinstance(row_dict["image_data"], memoryview):
+                        row_dict["image_data"] = bytes(row_dict["image_data"])
+                    elif isinstance(row_dict["image_data"], str):
                         # Handle string data - might be base64 or raw bytes as string
                         try:
                             # Try to decode as UTF-8 bytes
-                            row["image_data"] = row["image_data"].encode('latin-1')
+                            row_dict["image_data"] = row_dict["image_data"].encode('latin-1')
                         except (UnicodeEncodeError, UnicodeDecodeError):
                             # If that fails, assume it's already bytes-like
-                            row["image_data"] = bytes(row["image_data"], encoding='latin-1')
-                    elif not isinstance(row["image_data"], bytes):
+                            row_dict["image_data"] = bytes(row_dict["image_data"], encoding='latin-1')
+                    elif not isinstance(row_dict["image_data"], bytes):
                         # For other types, try to convert to bytes
                         try:
-                            row["image_data"] = bytes(row["image_data"])
+                            row_dict["image_data"] = bytes(row_dict["image_data"])
                         except TypeError:
                             # If conversion fails, convert to string first then encode
-                            row["image_data"] = str(row["image_data"]).encode('latin-1')
-            return rows
+                            row_dict["image_data"] = str(row_dict["image_data"]).encode('latin-1')
+                processed_rows.append(row_dict)
+            return processed_rows
 # -------------------------------------------------------
 
 # ------------------- IDLE REPORTS ---------------------
