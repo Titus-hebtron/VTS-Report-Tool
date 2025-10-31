@@ -380,7 +380,7 @@ def report_search_page():
         date_query = "SELECT DATE(MIN(idle_start)) as min_date, DATE(MAX(idle_start)) as max_date FROM idle_reports"
         with engine.connect() as conn:
             if contractor_id:
-                date_query += " WHERE contractor_id = ?"
+                date_query += " WHERE contractor_id = %s"
                 date_df = pd.read_sql_query(date_query, conn, params=(contractor_id,))
             else:
                 date_df = pd.read_sql_query(date_query, conn)
