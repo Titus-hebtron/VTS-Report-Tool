@@ -89,21 +89,39 @@ def init_database_if_needed():
                 cursor.execute("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)",
                               (plate_number, contractor))
 
-            # Add sample idle reports for testing
-            from datetime import datetime
-            idle_reports = [
-                ('KDG 320Z', datetime(2024, 10, 1, 8, 0, 0), datetime(2024, 10, 1, 8, 30, 0), 30.0, 'Nairobi CBD', -1.2864, 36.8172, 'Traffic congestion', 'admin', 1),
-                ('KDS 374F', datetime(2024, 10, 1, 9, 15, 0), datetime(2024, 10, 1, 9, 45, 0), 30.0, 'Westlands', -1.2630, 36.8065, 'Waiting for client', 'admin', 1),
-                ('KDC 873G', datetime(2024, 10, 1, 10, 0, 0), datetime(2024, 10, 1, 10, 20, 0), 20.0, 'Kilimani', -1.2910, 36.7844, 'Break time', 'admin', 2),
-                ('KDD 500X', datetime(2024, 10, 1, 11, 30, 0), datetime(2024, 10, 1, 12, 0, 0), 30.0, 'Karen', -1.3168, 36.7073, 'Lunch break', 'admin', 2),
-                ('KAV 444A', datetime(2024, 10, 1, 14, 0, 0), datetime(2024, 10, 1, 14, 25, 0), 25.0, 'Parklands', -1.2640, 36.8261, 'Vehicle maintenance', 'admin', 4),
-            ]
-            for vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id in idle_reports:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO idle_reports
-                    (vehicle, idle_start, idle_end, idle_duration_min, location_address, latitude, longitude, description, uploaded_by, contractor_id, uploaded_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id, datetime.now()))
+            # Add sample idle reports for testing (only if table is empty)
+            try:
+                if USE_SQLITE:
+                    cursor.execute("SELECT COUNT(*) FROM idle_reports")
+                else:
+                    cursor.execute("SELECT COUNT(*) FROM idle_reports")
+                count = cursor.fetchone()[0]
+
+                if count == 0:  # Only add sample data if table is empty
+                    from datetime import datetime
+                    idle_reports = [
+                        ('KDG 320Z', datetime(2024, 10, 1, 8, 0, 0), datetime(2024, 10, 1, 8, 30, 0), 30.0, 'Nairobi CBD', -1.2864, 36.8172, 'Traffic congestion', 'admin', 1),
+                        ('KDS 374F', datetime(2024, 10, 1, 9, 15, 0), datetime(2024, 10, 1, 9, 45, 0), 30.0, 'Westlands', -1.2630, 36.8065, 'Waiting for client', 'admin', 1),
+                        ('KDC 873G', datetime(2024, 10, 1, 10, 0, 0), datetime(2024, 10, 1, 10, 20, 0), 20.0, 'Kilimani', -1.2910, 36.7844, 'Break time', 'admin', 2),
+                        ('KDD 500X', datetime(2024, 10, 1, 11, 30, 0), datetime(2024, 10, 1, 12, 0, 0), 30.0, 'Karen', -1.3168, 36.7073, 'Lunch break', 'admin', 2),
+                        ('KAV 444A', datetime(2024, 10, 1, 14, 0, 0), datetime(2024, 10, 1, 14, 25, 0), 25.0, 'Parklands', -1.2640, 36.8261, 'Vehicle maintenance', 'admin', 4),
+                    ]
+                    for vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id in idle_reports:
+                        if USE_SQLITE:
+                            cursor.execute("""
+                                INSERT OR IGNORE INTO idle_reports
+                                (vehicle, idle_start, idle_end, idle_duration_min, location_address, latitude, longitude, description, uploaded_by, contractor_id, uploaded_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id, datetime.now()))
+                        else:
+                            cursor.execute("""
+                                INSERT INTO idle_reports
+                                (vehicle, idle_start, idle_end, idle_duration_min, location_address, latitude, longitude, description, uploaded_by, contractor_id, uploaded_at)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ON CONFLICT DO NOTHING
+                            """, (vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id, datetime.now()))
+            except Exception as e:
+                st.warning(f"Could not check idle_reports table: {e}")
 
             cursor.close()
 
