@@ -744,51 +744,52 @@ def incident_report_page(patrol_vehicle_options=None):
                         image_bytes = bytes(image_bytes)
                     elif not isinstance(image_bytes, bytes):
                         image_bytes = bytes(image_bytes)
-# Validate that we have valid image data before displaying
-try:
-    # Quick validation - try to open with PIL
-    from PIL import Image
-    import io
-    Image.open(io.BytesIO(image_bytes))
-    st.image(image_bytes, caption=img_name, width='stretch')
-except Exception as e:
-    st.error(f"❌ Invalid image data for {img_name}: {e}")
-    st.info("This image file appears to be corrupted or in an unsupported format.")
 
-    # Show hex dump for debugging
-    if len(image_bytes) < 100:
-        st.code(f"First {len(image_bytes)} bytes: {image_bytes.hex()}")
-    else:
-        st.code(f"First 100 bytes: {image_bytes[:100].hex()}")
-
-    # Try to decode as text to see if it's stored as raw text
-    try:
-        text_content = image_bytes.decode('utf-8', errors='ignore')
-        if len(text_content) > 0 and len(text_content) < 500:
-            st.info("Content appears to be text data:")
-            st.code(text_content[:500])
-
-            # Check if it looks like hex data that needs decoding
-            if all(c in '0123456789abcdefABCDEF' for c in text_content.strip()):
-                st.info("This looks like hex-encoded data. Try decoding it:")
-                try:
-                    decoded_bytes = bytes.fromhex(text_content.strip())
-                    st.code(f"Decoded first 100 bytes: {decoded_bytes[:100].hex()}")
-                    # Try to display the decoded image
+                    # Validate that we have valid image data before displaying
                     try:
+                        # Quick validation - try to open with PIL
                         from PIL import Image
                         import io
-                        Image.open(io.BytesIO(decoded_bytes))
-                        st.success("✅ Hex-decoded data is valid image! Displaying:")
-                        st.image(decoded_bytes, caption=f"{img_name} (hex-decoded)", width='stretch')
-                        # Successfully displayed, skip further error processing
-                        st.stop()
-                    except Exception as decode_e:
-                        st.error(f"❌ Hex-decoded data is not a valid image: {decode_e}")
-                except Exception as hex_e:
-                    st.error(f"❌ Could not decode hex data: {hex_e}")
-    except:
-        pass
+                        Image.open(io.BytesIO(image_bytes))
+                        st.image(image_bytes, caption=img_name, width='stretch')
+                    except Exception as e:
+                        st.error(f"❌ Invalid image data for {img_name}: {e}")
+                        st.info("This image file appears to be corrupted or in an unsupported format.")
+
+                        # Show hex dump for debugging
+                        if len(image_bytes) < 100:
+                            st.code(f"First {len(image_bytes)} bytes: {image_bytes.hex()}")
+                        else:
+                            st.code(f"First 100 bytes: {image_bytes[:100].hex()}")
+
+                        # Try to decode as text to see if it's stored as raw text
+                        try:
+                            text_content = image_bytes.decode('utf-8', errors='ignore')
+                            if len(text_content) > 0 and len(text_content) < 500:
+                                st.info("Content appears to be text data:")
+                                st.code(text_content[:500])
+
+                                # Check if it looks like hex data that needs decoding
+                                if all(c in '0123456789abcdefABCDEF' for c in text_content.strip()):
+                                    st.info("This looks like hex-encoded data. Try decoding it:")
+                                    try:
+                                        decoded_bytes = bytes.fromhex(text_content.strip())
+                                        st.code(f"Decoded first 100 bytes: {decoded_bytes[:100].hex()}")
+                                        # Try to display the decoded image
+                                        try:
+                                            from PIL import Image
+                                            import io
+                                            Image.open(io.BytesIO(decoded_bytes))
+                                            st.success("✅ Hex-decoded data is valid image! Displaying:")
+                                            st.image(decoded_bytes, caption=f"{img_name} (hex-decoded)", width='stretch')
+                                            # Successfully displayed, skip further error processing
+                                            st.stop()
+                                        except Exception as decode_e:
+                                            st.error(f"❌ Hex-decoded data is not a valid image: {decode_e}")
+                                    except Exception as hex_e:
+                                        st.error(f"❌ Could not decode hex data: {hex_e}")
+                        except:
+                            pass
             else:
                 st.info("No images uploaded for this incident.")
     else:
