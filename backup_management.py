@@ -253,69 +253,265 @@ def backup_management_page():
         st.subheader("🔧 Manual Backup")
         st.warning("⚠️ Manual backup may take several minutes and requires Google Drive authentication.")
 
-        if st.button("🚀 Run Manual Backup Now", type="primary"):
-            with st.spinner("Running backup... This may take a few minutes."):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🚀 Run Local Backup Only", type="secondary"):
+                with st.spinner("Running local backup... This may take a few minutes."):
+                    try:
+                        # Import backup functions directly to avoid subprocess issues
+                        import sqlite3
+                        import shutil
+                        import datetime
+                        import zipfile
+                        import io
+
+                        # Simple backup logic for manual trigger
+                        DB_PATH = 'vts_database.db'
+                        IMAGES_DIR = 'uploaded_accident_images'
+                        BACKUP_DIR = 'backups'
+
+                        # Create backups directory
+                        os.makedirs(BACKUP_DIR, exist_ok=True)
+
+                        # Generate backup filename
+                        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+
+                        # Database backup
+                        if os.path.exists(DB_PATH):
+                            db_backup = f'vts_database_backup_{timestamp}.db'
+                            db_path = os.path.join(BACKUP_DIR, db_backup)
+                            shutil.copy2(DB_PATH, db_path)
+                            st.info(f"✅ Database backup created: {db_backup}")
+                        else:
+                            st.warning("Database file not found")
+
+                        # Images backup
+                        if os.path.exists(IMAGES_DIR):
+                            img_backup = f'uploaded_images_backup_{timestamp}.zip'
+                            img_path = os.path.join(BACKUP_DIR, img_backup)
+                            with zipfile.ZipFile(img_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                                for root, dirs, files in os.walk(IMAGES_DIR):
+                                    for file in files:
+                                        file_path = os.path.join(root, file)
+                                        arcname = os.path.relpath(file_path, IMAGES_DIR)
+                                        zipf.write(file_path, arcname)
+                            st.info(f"✅ Images backup created: {img_backup}")
+                        else:
+                            st.warning("Images directory not found")
+
+                        st.success("✅ Local backup completed successfully!")
+                        st.info("Backups are stored locally. For Google Drive upload and email notifications, use the full backup option.")
+                        # Removed st.rerun() to prevent continuous rerunning
+
+                    except Exception as e:
+                        st.error(f"❌ Backup failed: {e}")
+                        import traceback
+                        with st.expander("View Error Details"):
+                            st.code(traceback.format_exc(), language="text")
+
+        with col2:
+            # Check if enough time has passed since last manual Google Drive backup
+            last_backup_file = "last_manual_gdrive_backup.txt"
+            can_backup = True
+            if os.path.exists(last_backup_file):
                 try:
-                    # Import backup functions directly to avoid subprocess issues
-                    import os
-                    import sqlite3
-                    import shutil
-                    import datetime
-                    import zipfile
-                    import io
+                    with open(last_backup_file, 'r') as f:
+                        last_backup_time = datetime.datetime.fromisoformat(f.read().strip())
+                    time_since_last = datetime.datetime.now() - last_backup_time
+                    if time_since_last < datetime.timedelta(hours=3):
+                        can_backup = False
+                        remaining_time = datetime.timedelta(hours=3) - time_since_last
+                        hours, remainder = divmod(remaining_time.seconds, 3600)
+                        minutes = remainder // 60
+                        st.warning(f"⚠️ Manual Google Drive backup can only be run once every 3 hours. Next available in {hours}h {minutes}m")
+                except:
+                    pass
 
-                    # Simple backup logic for manual trigger
-                    DB_PATH = 'vts_database.db'
-                    IMAGES_DIR = 'uploaded_accident_images'
-                    BACKUP_DIR = 'backups'
+            if can_backup and st.button("☁️ Run Full Backup to Google Drive", type="primary"):
+                with st.spinner("Running full backup with Google Drive upload... This may take several minutes."):
+                    try:
+                        # Import backup functions from backup_script.py
+                        import sqlite3
+                        import shutil
+                        import datetime
+                        import zipfile
+                        import io
+                        import smtplib
+                        from email.mime.text import MIMEText
+                        from email.mime.multipart import MIMEMultipart
+                        from email.mime.base import MIMEBase
+                        from email import encoders
 
-                    # Create backups directory
-                    os.makedirs(BACKUP_DIR, exist_ok=True)
+                        # Google Drive imports
+                        from google.oauth2.credentials import Credentials
+                        from googleapiclient.discovery import build
+                        from googleapiclient.http import MediaFileUpload
+                        from google.auth.transport.requests import Request
+                        import pickle
 
-                    # Generate backup filename
-                    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                        # Configuration
+                        DB_PATH = 'vts_database.db'
+                        IMAGES_DIR = 'uploaded_accident_images'
+                        BACKUP_DIR = 'backups'
+                        EMAIL_RECIPIENT = 'hebtron25@gmail.com'
+                        SMTP_SERVER = 'smtp.gmail.com'
+                        SMTP_PORT = 587
+                        SMTP_USERNAME = 'your-email@gmail.com'  # Replace with your email
+                        SMTP_PASSWORD = 'your-app-password'  # Replace with app password
 
-                    # Database backup
-                    if os.path.exists(DB_PATH):
-                        db_backup = f'vts_database_backup_{timestamp}.db'
-                        db_path = os.path.join(BACKUP_DIR, db_backup)
-                        shutil.copy2(DB_PATH, db_path)
-                        st.info(f"✅ Database backup created: {db_backup}")
-                    else:
-                        st.warning("Database file not found")
+                        # Create backups directory
+                        os.makedirs(BACKUP_DIR, exist_ok=True)
 
-                    # Images backup
-                    if os.path.exists(IMAGES_DIR):
-                        img_backup = f'uploaded_images_backup_{timestamp}.zip'
-                        img_path = os.path.join(BACKUP_DIR, img_backup)
-                        with zipfile.ZipFile(img_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                            for root, dirs, files in os.walk(IMAGES_DIR):
-                                for file in files:
-                                    file_path = os.path.join(root, file)
-                                    arcname = os.path.relpath(file_path, IMAGES_DIR)
-                                    zipf.write(file_path, arcname)
-                        st.info(f"✅ Images backup created: {img_backup}")
-                    else:
-                        st.warning("Images directory not found")
+                        # Generate backup filename
+                        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 
-                    st.success("✅ Manual backup completed successfully!")
-                    st.info("Backups are stored locally. For Google Drive upload and email notifications, run the full backup script.")
-                    st.rerun()  # Refresh to show new backups
+                        # Database backup
+                        if os.path.exists(DB_PATH):
+                            db_backup = f'vts_database_backup_{timestamp}.db'
+                            db_path = os.path.join(BACKUP_DIR, db_backup)
+                            shutil.copy2(DB_PATH, db_path)
+                            st.info(f"✅ Database backup created: {db_backup}")
+                        else:
+                            st.error("Database file not found")
+                            raise FileNotFoundError("Database file not found")
 
-                except Exception as e:
-                    st.error(f"❌ Backup failed: {e}")
-                    import traceback
-                    with st.expander("View Error Details"):
-                        st.code(traceback.format_exc(), language="text")
+                        # Images backup
+                        images_backup = None
+                        if os.path.exists(IMAGES_DIR):
+                            img_backup = f'uploaded_images_backup_{timestamp}.zip'
+                            img_path = os.path.join(BACKUP_DIR, img_backup)
+                            with zipfile.ZipFile(img_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                                for root, dirs, files in os.walk(IMAGES_DIR):
+                                    for file in files:
+                                        file_path = os.path.join(root, file)
+                                        arcname = os.path.relpath(file_path, IMAGES_DIR)
+                                        zipf.write(file_path, arcname)
+                            st.info(f"✅ Images backup created: {img_backup}")
+                            images_backup = img_path
+
+                        # Google Drive authentication
+                        creds = None
+                        token_path = 'token.pickle'
+
+                        if os.path.exists(token_path):
+                            with open(token_path, 'rb') as token:
+                                creds = pickle.load(token)
+
+                        if not creds or not creds.valid:
+                            if creds and creds.expired and creds.refresh_token:
+                                creds.refresh(Request())
+                            else:
+                                st.error("Google Drive authentication not set up. Please run backup_script.py first.")
+                                raise Exception("Google Drive authentication not set up")
+
+                        service = build('drive', 'v3', credentials=creds)
+
+                        # Create or get backup folder
+                        query = "name='VTS_Backups' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+                        results = service.files().list(q=query, spaces='drive').execute()
+                        items = results.get('files', [])
+
+                        if items:
+                            folder_id = items[0]['id']
+                        else:
+                            # Create new folder
+                            folder_metadata = {
+                                'name': 'VTS_Backups',
+                                'mimeType': 'application/vnd.google-apps.folder'
+                            }
+                            folder = service.files().create(body=folder_metadata, fields='id').execute()
+                            folder_id = folder.get('id')
+
+                        # Upload database backup
+                        file_metadata = {
+                            'name': os.path.basename(db_path),
+                            'parents': [folder_id]
+                        }
+                        media = MediaFileUpload(db_path, resumable=True)
+                        file = service.files().create(
+                            body=file_metadata,
+                            media_body=media,
+                            fields='id'
+                        ).execute()
+                        st.info(f"✅ Database uploaded to Google Drive (ID: {file.get('id')})")
+
+                        backup_files = [db_path]
+                        drive_ids = [file.get('id')]
+
+                        # Upload images backup if exists
+                        if images_backup:
+                            file_metadata = {
+                                'name': os.path.basename(images_backup),
+                                'parents': [folder_id]
+                            }
+                            media = MediaFileUpload(images_backup, resumable=True)
+                            file = service.files().create(
+                                body=file_metadata,
+                                media_body=media,
+                                fields='id'
+                            ).execute()
+                            st.info(f"✅ Images uploaded to Google Drive (ID: {file.get('id')})")
+                            backup_files.append(images_backup)
+                            drive_ids.append(file.get('id'))
+
+                        # Send email notification
+                        try:
+                            msg = MIMEMultipart()
+                            msg['From'] = SMTP_USERNAME
+                            msg['To'] = EMAIL_RECIPIENT
+                            msg['Subject'] = "VTS Manual Database Backup Completed"
+
+                            body = f"""VTS Database and Images Backup Completed Successfully
+
+Backup Details:
+- Database backup: {os.path.basename(db_path)}
+- Images backup: {os.path.basename(images_backup) if images_backup else 'No images to backup'}
+- Google Drive Folder ID: {folder_id}
+- Backup Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Files have been uploaded to Google Drive and are available for download.
+"""
+                            msg.attach(MIMEText(body, 'plain'))
+
+                            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+                            server.starttls()
+                            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                            text = msg.as_string()
+                            server.sendmail(SMTP_USERNAME, EMAIL_RECIPIENT, text)
+                            server.quit()
+
+                            st.info(f"✅ Email notification sent to {EMAIL_RECIPIENT}")
+
+                        except Exception as e:
+                            st.warning(f"Email notification failed: {e}")
+
+                        # Record the backup time
+                        with open("last_manual_gdrive_backup.txt", 'w') as f:
+                            f.write(datetime.datetime.now().isoformat())
+
+                        st.success("✅ Full backup to Google Drive completed successfully!")
+                        st.info("Backups are stored locally and uploaded to Google Drive with email notifications.")
+                        # Removed st.rerun() to prevent continuous rerunning
+
+                    except Exception as e:
+                        st.error(f"❌ Full backup failed: {e}")
+                        import traceback
+                        with st.expander("View Error Details"):
+                            st.code(traceback.format_exc(), language="text")
 
         # Backup schedule info
         st.subheader("⏰ Backup Schedule")
         st.info("""
         **Automated Backup Schedule:**
-        - Runs every 21 hours automatically
+        - Runs every 5 hours automatically
         - Requires backup_scheduler.py to be running
         - Sends email notifications to hebtron25@gmail.com
         - Stores backups locally and uploads to Google Drive
+
+        **Manual Google Drive Backup:**
+        - Can only be run once every 3 hours
+        - Includes full Google Drive upload and email notifications
 
         **To start automated backups:**
         ```bash
