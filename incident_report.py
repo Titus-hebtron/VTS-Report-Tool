@@ -744,7 +744,22 @@ def incident_report_page(patrol_vehicle_options=None):
                         image_bytes = bytes(image_bytes)
                     elif not isinstance(image_bytes, bytes):
                         image_bytes = bytes(image_bytes)
-                    st.image(image_bytes, caption=img_name, width='stretch')
+
+                    # Validate that we have valid image data before displaying
+                    try:
+                        # Quick validation - try to open with PIL
+                        from PIL import Image
+                        import io
+                        Image.open(io.BytesIO(image_bytes))
+                        st.image(image_bytes, caption=img_name, width='stretch')
+                    except Exception as e:
+                        st.error(f"❌ Invalid image data for {img_name}: {e}")
+                        st.info("This image file appears to be corrupted or in an unsupported format.")
+                        # Show hex dump for debugging
+                        if len(image_bytes) < 100:
+                            st.code(f"First {len(image_bytes)} bytes: {image_bytes.hex()}")
+                        else:
+                            st.code(f"First 100 bytes: {image_bytes[:100].hex()}")
             else:
                 st.info("No images uploaded for this incident.")
     else:
