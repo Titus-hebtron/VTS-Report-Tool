@@ -703,8 +703,12 @@ elif page == "Accident Analysis":
     from accident_analysis import accident_analysis_page
     accident_analysis_page()
 elif page == "Backup Management":
-    from backup_management import backup_management_page
-    backup_management_page()
+    try:
+        from backup_management import backup_management_page
+        backup_management_page()
+    except Exception as e:
+        st.error(f"❌ Error loading Backup Management: {e}")
+        st.info("💡 This feature requires additional setup. Please contact the administrator.")
 
 # ---------------- FOOTER ----------------
 st.markdown("""
