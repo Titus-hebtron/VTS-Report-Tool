@@ -760,6 +760,15 @@ def incident_report_page(patrol_vehicle_options=None):
                             st.code(f"First {len(image_bytes)} bytes: {image_bytes.hex()}")
                         else:
                             st.code(f"First 100 bytes: {image_bytes[:100].hex()}")
+
+                        # Try to decode as text to see if it's stored as raw text
+                        try:
+                            text_content = image_bytes.decode('utf-8', errors='ignore')
+                            if len(text_content) > 0 and len(text_content) < 500:
+                                st.info("Content appears to be text data:")
+                                st.code(text_content[:500])
+                        except:
+                            pass
             else:
                 st.info("No images uploaded for this incident.")
     else:
