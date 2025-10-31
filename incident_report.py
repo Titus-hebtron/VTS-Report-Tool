@@ -792,7 +792,5 @@ def incident_report_page(patrol_vehicle_options=None):
                             pass
             else:
                 st.info("No images uploaded for this incident.")
-        else:
-            st.info("No images uploaded for this incident.")
     else:
         st.info("No incident reports found.")
