@@ -560,6 +560,7 @@ def get_recent_incident_reports(limit=20):
 
 def get_incident_images(report_id, only_meta=False):
     import base64
+    import binascii
     engine = get_sqlalchemy_engine()
     with engine.begin() as conn:
         if only_meta:
@@ -578,7 +579,7 @@ def get_incident_images(report_id, only_meta=False):
             """)
             result = conn.execute(query, {"incident_id": report_id}).mappings().all()
 
-            # Robust image data handling for all cases (binary, base64, or string-encoded)
+            # Robust image data handling for all cases (binary, base64, hex string, or string-encoded)
             processed_rows = []
             for row in result:
                 row_dict = dict(row)
@@ -587,26 +588,38 @@ def get_incident_images(report_id, only_meta=False):
                 # Handle different data types robustly
                 if image_data is not None:
                     if isinstance(image_data, str):
-                        # Check if it's a string representation of bytes (like '\xff\xd8\xff...')
-                        if image_data.startswith('\\x') or (len(image_data) > 0 and image_data[0] == '\\' and 'x' in image_data[:10]):
-                            # This is a string representation of bytes, convert it back
+                        # Check if it's a hex string (like 'ff643866666530303031...')
+                        if all(c in '0123456789abcdefABCDEF' for c in image_data):
                             try:
-                                # Remove the surrounding quotes if present and evaluate as Python literal
-                                import ast
-                                if image_data.startswith(("'", '"')) and image_data.endswith(("'", '"')):
-                                    image_data = image_data[1:-1]
-                                # Use ast.literal_eval to safely evaluate the string representation
-                                image_bytes = ast.literal_eval(f"b'{image_data}'")
-                            except (ValueError, SyntaxError):
-                                # Fallback: try to decode as latin-1
-                                image_bytes = image_data.encode('latin-1')
+                                # Try hex decoding
+                                image_bytes = binascii.unhexlify(image_data)
+                            except (binascii.Error, ValueError):
+                                # Not valid hex, try other methods
+                                image_bytes = None
                         else:
-                            try:
-                                # Try base64 decoding first
-                                image_bytes = base64.b64decode(image_data)
-                            except Exception:
-                                # If not base64, treat as latin-1 encoded bytes stored as text
-                                image_bytes = image_data.encode('latin-1')
+                            image_bytes = None
+
+                        if image_bytes is None:
+                            # Check if it's a string representation of bytes (like '\xff\xd8\xff...')
+                            if image_data.startswith('\\x') or (len(image_data) > 0 and image_data[0] == '\\' and 'x' in image_data[:10]):
+                                # This is a string representation of bytes, convert it back
+                                try:
+                                    # Remove the surrounding quotes if present and evaluate as Python literal
+                                    import ast
+                                    if image_data.startswith(("'", '"')) and image_data.endswith(("'", '"')):
+                                        image_data = image_data[1:-1]
+                                    # Use ast.literal_eval to safely evaluate the string representation
+                                    image_bytes = ast.literal_eval(f"b'{image_data}'")
+                                except (ValueError, SyntaxError):
+                                    # Fallback: try to decode as latin-1
+                                    image_bytes = image_data.encode('latin-1')
+                            else:
+                                try:
+                                    # Try base64 decoding
+                                    image_bytes = base64.b64decode(image_data)
+                                except Exception:
+                                    # If not base64, treat as latin-1 encoded bytes stored as text
+                                    image_bytes = image_data.encode('latin-1')
                     elif isinstance(image_data, memoryview):
                         # PostgreSQL returns BLOB as memoryview
                         image_bytes = bytes(image_data)
