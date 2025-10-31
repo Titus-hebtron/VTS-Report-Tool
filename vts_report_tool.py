@@ -26,7 +26,7 @@ st.set_page_config(
 # ---------------- DATABASE INITIALIZATION ----------------
 def init_database_if_needed():
     """Initialize database tables if they don't exist"""
-    from db_utils import get_sqlalchemy_engine
+    from db_utils import get_sqlalchemy_engine, USE_SQLITE
     from sqlalchemy import text
 
     engine = get_sqlalchemy_engine()
@@ -34,8 +34,11 @@ def init_database_if_needed():
     # Initialize database tables and data
     try:
         with engine.begin() as conn:
-            # Check if users table exists
-            result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+            # Check if users table exists (works for both SQLite and PostgreSQL)
+            if USE_SQLITE:
+                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
+            else:
+                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='users'"))
             table_exists = result.fetchone() is not None
 
             if not table_exists:
@@ -45,10 +48,17 @@ def init_database_if_needed():
                 with open('schema.sql', 'r') as f:
                     sql = f.read()
 
-                # Execute schema using executescript for multiple statements
-                cursor = conn.connection.cursor()
-                cursor.executescript(sql)
-                cursor.close()
+                if USE_SQLITE:
+                    # Execute schema using executescript for multiple statements (SQLite)
+                    cursor = conn.connection.cursor()
+                    cursor.executescript(sql)
+                    cursor.close()
+                else:
+                    # Execute schema for PostgreSQL (split by semicolon and execute each statement)
+                    statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip()]
+                    for statement in statements:
+                        if statement:
+                            conn.execute(text(statement))
 
                 # Add default contractors
                 from db_utils import add_user
@@ -632,9 +642,9 @@ elif role == "admin":
 elif role == "patrol":
     allowed_pages = ["Incident Report", "Breaks & Pickups", "GPS Tracking", "Real-Time GPS"]
 elif role == "re_admin":
-    # RE admin has access to all pages
+    # RE admin has access to all pages including backup management
     allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
-                     "Report Search", "Breaks & Pickups", "Search Page", "Accident Analysis", "GPS Tracking", "Real-Time GPS"]
+                     "Report Search", "Breaks & Pickups", "Search Page", "Accident Analysis", "GPS Tracking", "Real-Time GPS", "Backup Management"]
 else:
     allowed_pages = []
 
@@ -674,6 +684,9 @@ elif page == "Real-Time GPS":
 elif page == "Accident Analysis":
     from accident_analysis import accident_analysis_page
     accident_analysis_page()
+elif page == "Backup Management":
+    from backup_management import backup_management_page
+    backup_management_page()
 
 # ---------------- FOOTER ----------------
 st.markdown("""
