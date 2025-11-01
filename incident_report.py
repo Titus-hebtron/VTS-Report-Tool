@@ -408,6 +408,7 @@ def incident_report_page(patrol_vehicle_options=None):
                 }
 
                 report_id = save_incident_report(data, uploaded_by="Admin")
+                print(f"DEBUG: Report ID returned: {report_id}, type: {type(report_id)}")
 
                 # Save uploaded photos
                 if uploaded_photos:
