@@ -64,11 +64,12 @@ def _normalize_image(image_bytes, quality=75):
     This fixes issues with WhatsApp images and reduces file size.
     """
     try:
-        # Import PIL modules locally to avoid scoping issues
+        # Import modules locally to avoid scoping issues
+        import io as io_module
         from PIL import Image as PILImage, ExifTags
 
         # Open image
-        img = PILImage.open(io.BytesIO(image_bytes))
+        img = PILImage.open(io_module.BytesIO(image_bytes))
 
         # Convert to RGB if necessary (removes alpha channel, fixes CMYK issues)
         if img.mode not in ('RGB', 'L'):
@@ -92,7 +93,7 @@ def _normalize_image(image_bytes, quality=75):
             pass  # Skip rotation if EXIF reading fails
 
         # Compress and save as JPEG
-        output = io.BytesIO()
+        output = io_module.BytesIO()
         img.save(output, format='JPEG', quality=quality, optimize=True)
         return output.getvalue()
 
@@ -478,9 +479,10 @@ def incident_report_page(patrol_vehicle_options=None):
                 normalized_raw = _normalize_image(raw)
 
                 try:
-                    # Import PIL locally to avoid scoping issues
+                    # Import modules locally to avoid scoping issues
+                    import io as io_module
                     from PIL import Image as PILImage
-                    img = PILImage.open(io.BytesIO(normalized_raw))
+                    img = PILImage.open(io_module.BytesIO(normalized_raw))
                 except Exception as e:
                     # Don't skip invalid images - mark them as having an error but still process them
                     # Use original raw bytes for display, but normalized for processing
