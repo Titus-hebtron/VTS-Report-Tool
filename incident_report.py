@@ -795,6 +795,25 @@ def incident_report_page(patrol_vehicle_options=None):
                         except Exception as fallback_e:
                             print(f"DEBUG: Could not retrieve last inserted ID: {fallback_e}")
 
+                    # If still no valid ID, create a manual ID based on current timestamp
+                    if not report_id or report_id <= 0:
+                        try:
+                            # Generate a unique ID based on timestamp (as fallback)
+                            import time
+                            report_id = int(time.time() * 1000000) % 1000000000  # 9-digit ID
+                            print(f"DEBUG: Generated fallback ID: {report_id}")
+
+                            # Try to insert with this ID (for SQLite, we can specify ID)
+                            from db_utils import get_sqlalchemy_engine
+                            engine = get_sqlalchemy_engine()
+                            with engine.begin() as conn:
+                                from sqlalchemy import text
+                                # Update the last inserted record with our generated ID
+                                conn.execute(text("UPDATE incident_reports SET id = :new_id WHERE id = (SELECT MAX(id) FROM incident_reports)"), {"new_id": report_id})
+                                print(f"DEBUG: Updated record with generated ID: {report_id}")
+                        except Exception as manual_e:
+                            print(f"DEBUG: Could not generate manual ID: {manual_e}")
+
                     if report_id and report_id > 0:
                         # upload image bytes
                         raw_bytes = meta.get("raw")
