@@ -549,9 +549,8 @@ def incident_report_page(patrol_vehicle_options=None):
         # iterate with index so removals are easy
         for idx, p in enumerate(list(st.session_state["whatsapp_items"])):
             with st.expander(f"{idx+1}. {p['name']} {'(saved)' if p.get('saved') else ''}", expanded=False):
-                if p.get("error"):
-                    st.error(f"Skipping {p['name']}: {p['error']}")
-                    continue
+                # Don't skip items with errors - show them so user can edit and save
+                pass
 
                 cols = st.columns([1, 2])
                 with cols[0]:
