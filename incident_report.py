@@ -422,7 +422,11 @@ def incident_report_page(patrol_vehicle_options=None):
                         normalized_bytes = _normalize_image(file_bytes)
                         save_incident_image(report_id, normalized_bytes, file.name)
 
-                st.success(f"✅ Incident report saved successfully! Report ID: {report_id}")
+                if report_id and report_id > 0:
+                    st.success(f"✅ Incident report saved successfully! Report ID: {report_id}")
+                else:
+                    st.error("❌ Failed to save incident report - no valid ID returned")
+                    return
 
             except Exception as e:
                 st.error(f"Error saving incident report: {e}")
@@ -829,11 +833,9 @@ def incident_report_page(patrol_vehicle_options=None):
 
                     # Validate that we have valid image data before displaying
                     try:
-                        # Quick validation - try to open with PIL
-                        from PIL import Image
-                        import io
-                        Image.open(io.BytesIO(image_bytes))
-                        st.image(image_bytes, caption=f"{img_name} (Incident ID: {selected_id})", width='stretch')
+                        # Always normalize before displaying to ensure compatibility
+                        normalized_image_bytes = _normalize_image(image_bytes)
+                        st.image(normalized_image_bytes, caption=f"{img_name} (Incident ID: {selected_id})", width='stretch')
                     except Exception as e:
                         st.error(f"❌ Invalid image data for {img_name}: {e}")
                         st.info("This image file appears to be corrupted or in an unsupported format.")
@@ -859,11 +861,9 @@ def incident_report_page(patrol_vehicle_options=None):
                                         st.code(f"Decoded first 100 bytes: {decoded_bytes[:100].hex()}")
                                         # Try to display the decoded image
                                         try:
-                                            from PIL import Image
-                                            import io
-                                            Image.open(io.BytesIO(decoded_bytes))
+                                            normalized_decoded = _normalize_image(decoded_bytes)
                                             st.success("✅ Hex-decoded data is valid image! Displaying:")
-                                            st.image(decoded_bytes, caption=f"{img_name} (hex-decoded) - Incident ID: {selected_id}", width='stretch')
+                                            st.image(normalized_decoded, caption=f"{img_name} (hex-decoded) - Incident ID: {selected_id}", width='stretch')
                                             # Successfully displayed, skip further error processing
                                             st.stop()
                                         except Exception as decode_e:
