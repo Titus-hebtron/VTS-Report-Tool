@@ -249,31 +249,35 @@ def save_incident_report(data, uploaded_by="Unknown"):
         "created_at": datetime.now()
     }
 
-    with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO incident_reports (
-                incident_date, incident_time, caller, phone_number,
-                location, bound, chainage, num_vehicles, vehicle_type,
-                vehicle_condition, num_injured, cond_injured, injured_part,
-                fire_hazard, oil_leakage, chemical_leakage, damage_road_furniture,
-                response_time, clearing_time, department_contact,
-                description, patrol_car, incident_type, created_at,
-                uploaded_by, contractor_id
-            ) VALUES (
-                :incident_date, :incident_time, :caller, :phone_number,
-                :location, :bound, :chainage, :num_vehicles, :vehicle_type,
-                :vehicle_condition, :num_injured, :cond_injured, :injured_part,
-                :fire_hazard, :oil_leakage, :chemical_leakage, :damage_road_furniture,
-                :response_time, :clearing_time, :department_contact,
-                :description, :patrol_car, :incident_type, :created_at,
-                :uploaded_by, :contractor_id
-            )
-        """), insert_data)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO incident_reports (
+                    incident_date, incident_time, caller, phone_number,
+                    location, bound, chainage, num_vehicles, vehicle_type,
+                    vehicle_condition, num_injured, cond_injured, injured_part,
+                    fire_hazard, oil_leakage, chemical_leakage, damage_road_furniture,
+                    response_time, clearing_time, department_contact,
+                    description, patrol_car, incident_type, created_at,
+                    uploaded_by, contractor_id
+                ) VALUES (
+                    :incident_date, :incident_time, :caller, :phone_number,
+                    :location, :bound, :chainage, :num_vehicles, :vehicle_type,
+                    :vehicle_condition, :num_injured, :cond_injured, :injured_part,
+                    :fire_hazard, :oil_leakage, :chemical_leakage, :damage_road_furniture,
+                    :response_time, :clearing_time, :department_contact,
+                    :description, :patrol_car, :incident_type, :created_at,
+                    :uploaded_by, :contractor_id
+                )
+            """), insert_data)
 
-        # Get the last inserted row id for SQLite
-        result = conn.execute(text("SELECT last_insert_rowid()"))
-        row = result.fetchone()
-        report_id = row[0] if row else 0
+            # Get the last inserted row id for SQLite
+            result = conn.execute(text("SELECT last_insert_rowid()"))
+            row = result.fetchone()
+            report_id = row[0] if row else 0
+    except Exception as e:
+        print(f"Error saving incident report: {e}")
+        return 0
 
     return report_id
 
@@ -516,7 +520,7 @@ def save_incident_report(data, uploaded_by="Unknown"):
             """), insert_data)
 
             row = result.fetchone()
-            report_id = row[0] if row else None
+            report_id = row[0] if row else 0
 
     return report_id
 
