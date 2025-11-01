@@ -564,6 +564,7 @@ def incident_report_page(patrol_vehicle_options=None):
                 with cols[0]:
                     if p.get("error"):
                         st.error(f"⚠️ {p['error']}")
+                        st.info("This image is corrupted or unreadable but can still be saved.")
                         st.write("Raw bytes preview:")
                         # Show first 200 bytes as hex for debugging
                         raw_bytes = p["raw"]
@@ -572,10 +573,13 @@ def incident_report_page(patrol_vehicle_options=None):
                         else:
                             st.code(f"All {len(raw_bytes)} bytes: {raw_bytes.hex()}")
                     else:
+                        # Always normalize before displaying to ensure compatibility
                         try:
-                            st.image(p["raw"], use_container_width=True)
+                            normalized_for_display = _normalize_image(p["raw"])
+                            st.image(normalized_for_display, use_container_width=True)
                         except Exception as e:
                             st.error(f"Failed to display image: {e}")
+                            st.info("This image is corrupted or unreadable but can still be saved.")
                             st.write("Raw bytes preview:")
                             raw_bytes = p["raw"]
                             if len(raw_bytes) > 200:
