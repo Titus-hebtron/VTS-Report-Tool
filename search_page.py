@@ -378,6 +378,21 @@ def search_page():
                                         img_data_blob = img_row['image_data']
                                         img_name = img_row['image_name']
 
+                                        # Decode if necessary - handle hex-encoded data
+                                        if isinstance(img_data_blob, str):
+                                            import binascii
+                                            try:
+                                                if all(c in '0123456789abcdefABCDEF' for c in img_data_blob.strip()):
+                                                    img_data_blob = binascii.unhexlify(img_data_blob.strip())
+                                                    print(f"Decoded hex image data for {img_name}: {len(img_data_blob)} bytes")
+                                                else:
+                                                    import base64
+                                                    img_data_blob = base64.b64decode(img_data_blob)
+                                                    print(f"Decoded base64 image data for {img_name}: {len(img_data_blob)} bytes")
+                                            except Exception as decode_e:
+                                                print(f"Failed to decode image data for {img_name}: {decode_e}")
+                                                continue
+
                                         if not img_data_blob or not isinstance(img_data_blob, bytes) or len(img_data_blob) == 0:
                                             continue
 
