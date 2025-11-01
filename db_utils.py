@@ -272,7 +272,8 @@ def save_incident_report(data, uploaded_by="Unknown"):
 
         # Get the last inserted row id for SQLite
         result = conn.execute(text("SELECT last_insert_rowid()"))
-        report_id = result.fetchone()[0]
+        row = result.fetchone()
+        report_id = row[0] if row else None
 
     return report_id
 
