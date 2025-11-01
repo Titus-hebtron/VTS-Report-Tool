@@ -654,7 +654,7 @@ def report_search_page():
 def search_page():
     import streamlit as st
     import pandas as pd
-    from db_utils import get_sqlalchemy_engine, get_contractor_name
+    from db_utils import get_sqlalchemy_engine, get_contractor_name, get_active_contractor
 
     st.header("🔍 Search & View Data")
 
@@ -665,53 +665,71 @@ def search_page():
     end_date = st.date_input("End date")
     vehicle = st.text_input("Vehicle (optional)")
 
-    if st.button("Search"):
-        engine = get_sqlalchemy_engine()
-        with engine.connect() as conn:
-            if selected_option == "Accidents":
-                query = "SELECT * FROM accidents WHERE accident_date BETWEEN ? AND ?"
-                params = [start_date, end_date]
-                if vehicle:
-                    query += " AND vehicle = ?"
-                    params.append(vehicle)
-                df = pd.read_sql_query(query, conn, params=params)
-            elif selected_option == "Incidents":
-                query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ?"
-                params = [start_date, end_date]
-                if vehicle:
-                    query += " AND patrol_car = ?"
-                    params.append(vehicle)
-                df = pd.read_sql_query(query, conn, params=params)
-            elif selected_option == "Breaks":
-                query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
-                params = [start_date, end_date]
-                if vehicle:
-                    query += " AND vehicle = ?"
-                    params.append(vehicle)
-                df = pd.read_sql_query(query, conn, params=params)
-            elif selected_option == "Pickups":
-                query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
-                params = [start_date, end_date]
-                if vehicle:
-                    query += " AND vehicle = ?"
-                    params.append(vehicle)
-                df = pd.read_sql_query(query, conn, params=params)
-            else:
-                df = pd.DataFrame()
-    else:
-        df = pd.DataFrame()
+    # Get current contractor for filtering
+    contractor_id = get_active_contractor()
 
-        if not df.empty:
-            st.dataframe(df)
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Download Results as CSV",
-                data=csv,
-                file_name=f"{selected_option.lower()}_results.csv",
-                mime="text/csv"
-            )
-        else:
-            st.info("No data found for your search.")
+    if st.button("Search"):
+        try:
+            engine = get_sqlalchemy_engine()
+            with engine.connect() as conn:
+                if selected_option == "Accidents":
+                    query = "SELECT * FROM accidents WHERE accident_date BETWEEN %s AND %s"
+                    params = [start_date, end_date]
+                    if contractor_id:
+                        query += " AND contractor_id = %s"
+                        params.append(contractor_id)
+                    if vehicle:
+                        query += " AND vehicle = %s"
+                        params.append(vehicle)
+                    df = pd.read_sql_query(query, conn, params=params)
+                elif selected_option == "Incidents":
+                    query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN %s AND %s"
+                    params = [start_date, end_date]
+                    if contractor_id:
+                        query += " AND contractor_id = %s"
+                        params.append(contractor_id)
+                    if vehicle:
+                        query += " AND patrol_car = %s"
+                        params.append(vehicle)
+                    df = pd.read_sql_query(query, conn, params=params)
+                elif selected_option == "Breaks":
+                    query = "SELECT * FROM breaks WHERE break_date BETWEEN %s AND %s"
+                    params = [start_date, end_date]
+                    if contractor_id:
+                        query += " AND contractor_id = %s"
+                        params.append(contractor_id)
+                    if vehicle:
+                        query += " AND vehicle = %s"
+                        params.append(vehicle)
+                    df = pd.read_sql_query(query, conn, params=params)
+                elif selected_option == "Pickups":
+                    query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN %s AND %s"
+                    params = [start_date, end_date]
+                    if contractor_id:
+                        query += " AND contractor_id = %s"
+                        params.append(contractor_id)
+                    if vehicle:
+                        query += " AND vehicle = %s"
+                        params.append(vehicle)
+                    df = pd.read_sql_query(query, conn, params=params)
+                else:
+                    df = pd.DataFrame()
+
+            if not df.empty:
+                st.dataframe(df)
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Results as CSV",
+                    data=csv,
+                    file_name=f"{selected_option.lower()}_results.csv",
+                    mime="text/csv"
+                )
+            else:
+                st.info("No data found for your search.")
+        except Exception as e:
+            st.error(f"Database error fetching {selected_option.lower()} data: {e}")
+    else:
+        st.info("Click 'Search' to fetch data.")
 
 # ---------------------- RUN APP ----------------------
 if __name__ == "__main__":
