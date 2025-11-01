@@ -779,6 +779,22 @@ def incident_report_page(patrol_vehicle_options=None):
                     report_id = save_incident_report(data, uploaded_by="WhatsApp")
                     print(f"DEBUG: WhatsApp Report ID returned: {report_id}, type: {type(report_id)}")
 
+                    # If no valid ID returned, try to get the last inserted ID
+                    if not report_id or report_id <= 0:
+                        try:
+                            # For SQLite, get the last inserted rowid
+                            from db_utils import get_sqlalchemy_engine
+                            engine = get_sqlalchemy_engine()
+                            with engine.begin() as conn:
+                                from sqlalchemy import text
+                                result = conn.execute(text("SELECT last_insert_rowid()"))
+                                last_id = result.fetchone()
+                                if last_id and last_id[0] > 0:
+                                    report_id = last_id[0]
+                                    print(f"DEBUG: Retrieved last inserted ID: {report_id}")
+                        except Exception as fallback_e:
+                            print(f"DEBUG: Could not retrieve last inserted ID: {fallback_e}")
+
                     if report_id and report_id > 0:
                         # upload image bytes
                         raw_bytes = meta.get("raw")
@@ -792,7 +808,7 @@ def incident_report_page(patrol_vehicle_options=None):
                                 break
                         save_results.append((meta["name"], report_id, "ok"))
                     else:
-                        save_results.append((meta["name"], None, "error: Invalid report ID returned"))
+                        save_results.append((meta["name"], None, "error: Could not create or retrieve valid report ID"))
                 except Exception as e:
                     save_results.append((meta["name"], None, f"error: {e}"))
 
