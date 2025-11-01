@@ -353,6 +353,7 @@ def search_page():
                     # Embed images if applicable
                     if selected_option in ["Accidents", "Incidents"] and not image_df.empty and temp_dir:
                         st.info("📸 Embedding images into Excel workbook...")
+                        images_embedded = 0
                         for index, row in df.iterrows():
                             report_id = row.get('id')
                             if report_id:
@@ -387,22 +388,30 @@ def search_page():
                                             with open(temp_file_path, 'wb') as f:
                                                 f.write(img_data_blob)
 
-                                            img = OpenpyxlImage(temp_file_path)
-                                            col_letters = ['A', 'E']
-                                            col = col_letters[img_counter % 2]
-                                            img.anchor = f'{col}{current_row}'
-                                            img.width = 300
-                                            img.height = 200
-                                            ws.add_image(img)
+                                            # Verify the file was written correctly
+                                            if os.path.exists(temp_file_path) and os.path.getsize(temp_file_path) > 0:
+                                                img = OpenpyxlImage(temp_file_path)
+                                                col_letters = ['A', 'E']
+                                                col = col_letters[img_counter % 2]
+                                                img.anchor = f'{col}{current_row}'
+                                                img.width = 300
+                                                img.height = 200
+                                                ws.add_image(img)
+                                                images_embedded += 1
 
-                                            if (img_counter + 1) % 2 == 0:
-                                                current_row += 12
+                                                if (img_counter + 1) % 2 == 0:
+                                                    current_row += 12
+                                            else:
+                                                st.warning(f"Failed to write image file {img_name}")
                                         except Exception as img_e:
-                                            # Skip this image and continue
+                                            st.warning(f"Failed to embed image {img_name}: {img_e}")
                                             continue
 
                                     current_row += 2
-                        st.success("✅ Images embedded successfully!")
+                        if images_embedded > 0:
+                            st.success(f"✅ Successfully embedded {images_embedded} images!")
+                        else:
+                            st.warning("⚠️ No images were embedded. Check image data integrity.")
 
                 # --- DOWNLOAD BUTTON FOR EXCEL WORKBOOK ---
                 contractor_name = st.session_state.get("contractor", "unknown").capitalize()
