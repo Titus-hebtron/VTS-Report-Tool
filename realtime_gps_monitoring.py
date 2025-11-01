@@ -39,53 +39,95 @@ def realtime_gps_monitoring_page():
     if is_re_office:
         # RE Office sees vehicles from Wizpro and Paschal contractors only
         # Always show vehicles even without GPS data - they should be visible on map
-        vehicles_query = """
-            SELECT
-                v.id,
-                v.plate_number,
-                c.name as contractor_name,
-                COALESCE(latest_gps.latitude, -1.2921) as latitude,
-                COALESCE(latest_gps.longitude, 36.8219) as longitude,
-                latest_gps.timestamp as last_update,
-                COALESCE(latest_gps.activity, 'stationary') as activity,
-                COALESCE(latest_gps.status, 'offline') as status
-            FROM vehicles v
-            JOIN contractors c ON v.contractor = c.name
-            LEFT JOIN patrol_logs latest_gps ON latest_gps.vehicle_id = v.id
-                AND latest_gps.timestamp = (
-                    SELECT MAX(timestamp)
-                    FROM patrol_logs
-                    WHERE vehicle_id = v.id
-                    AND timestamp > datetime('now', '-24 hours')  -- Extended to 24 hours
-                )
-            WHERE c.name IN ('Wizpro', 'Paschal')
-            ORDER BY c.name, v.plate_number
-        """
-        vehicles_df = pd.read_sql(vehicles_query, engine)
+        try:
+            vehicles_query = """
+                SELECT
+                    v.id,
+                    v.plate_number,
+                    c.name as contractor_name,
+                    COALESCE(latest_gps.latitude, -1.2921) as latitude,
+                    COALESCE(latest_gps.longitude, 36.8219) as longitude,
+                    latest_gps.timestamp as last_update,
+                    COALESCE(latest_gps.activity, 'stationary') as activity,
+                    COALESCE(latest_gps.status, 'offline') as status
+                FROM vehicles v
+                JOIN contractors c ON v.contractor = c.name
+                LEFT JOIN patrol_logs latest_gps ON latest_gps.vehicle_id = v.id
+                    AND latest_gps.timestamp = (
+                        SELECT MAX(timestamp)
+                        FROM patrol_logs
+                        WHERE vehicle_id = v.id
+                        AND timestamp > datetime('now', '-24 hours')  -- Extended to 24 hours
+                    )
+                WHERE c.name IN ('Wizpro', 'Paschal')
+                ORDER BY c.name, v.plate_number
+            """
+            vehicles_df = pd.read_sql(vehicles_query, engine)
+        except Exception as e:
+            # If patrol_logs table doesn't exist, show vehicles without GPS data
+            if "does not exist" in str(e) or "UndefinedTable" in str(e):
+                vehicles_query = """
+                    SELECT
+                        v.id,
+                        v.plate_number,
+                        c.name as contractor_name,
+                        -1.2921 as latitude,
+                        36.8219 as longitude,
+                        NULL as last_update,
+                        'stationary' as activity,
+                        'offline' as status
+                    FROM vehicles v
+                    JOIN contractors c ON v.contractor = c.name
+                    WHERE c.name IN ('Wizpro', 'Paschal')
+                    ORDER BY c.name, v.plate_number
+                """
+                vehicles_df = pd.read_sql(vehicles_query, engine)
+            else:
+                raise e
     else:
         # Other contractors see only their vehicles
         # Always show vehicles even without GPS data
-        vehicles_query = """
-            SELECT
-                v.id,
-                v.plate_number,
-                COALESCE(latest_gps.latitude, -1.2921) as latitude,
-                COALESCE(latest_gps.longitude, 36.8219) as longitude,
-                latest_gps.timestamp as last_update,
-                COALESCE(latest_gps.activity, 'stationary') as activity,
-                COALESCE(latest_gps.status, 'offline') as status
-            FROM vehicles v
-            LEFT JOIN patrol_logs latest_gps ON latest_gps.vehicle_id = v.id
-                AND latest_gps.timestamp = (
-                    SELECT MAX(timestamp)
-                    FROM patrol_logs
-                    WHERE vehicle_id = v.id
-                    AND timestamp > datetime('now', '-24 hours')  -- Extended to 24 hours
-                )
-            WHERE v.contractor = (SELECT name FROM contractors WHERE id = %s)
-            ORDER BY v.plate_number
-        """
-        vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+        try:
+            vehicles_query = """
+                SELECT
+                    v.id,
+                    v.plate_number,
+                    COALESCE(latest_gps.latitude, -1.2921) as latitude,
+                    COALESCE(latest_gps.longitude, 36.8219) as longitude,
+                    latest_gps.timestamp as last_update,
+                    COALESCE(latest_gps.activity, 'stationary') as activity,
+                    COALESCE(latest_gps.status, 'offline') as status
+                FROM vehicles v
+                LEFT JOIN patrol_logs latest_gps ON latest_gps.vehicle_id = v.id
+                    AND latest_gps.timestamp = (
+                        SELECT MAX(timestamp)
+                        FROM patrol_logs
+                        WHERE vehicle_id = v.id
+                        AND timestamp > datetime('now', '-24 hours')  -- Extended to 24 hours
+                    )
+                WHERE v.contractor = (SELECT name FROM contractors WHERE id = %s)
+                ORDER BY v.plate_number
+            """
+            vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+        except Exception as e:
+            # If patrol_logs table doesn't exist, show vehicles without GPS data
+            if "does not exist" in str(e) or "UndefinedTable" in str(e):
+                vehicles_query = """
+                    SELECT
+                        v.id,
+                        v.plate_number,
+                        -1.2921 as latitude,
+                        36.8219 as longitude,
+                        NULL as last_update,
+                        'stationary' as activity,
+                        'offline' as status
+                    FROM vehicles v
+                    WHERE v.contractor = (SELECT name FROM contractors WHERE id = %s)
+                    ORDER BY v.plate_number
+                """
+                vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+            else:
+                raise e
 
     if vehicles_df.empty:
         st.warning("No vehicles found.")
