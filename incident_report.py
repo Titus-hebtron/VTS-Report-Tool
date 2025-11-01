@@ -777,17 +777,22 @@ def incident_report_page(patrol_vehicle_options=None):
 
                 try:
                     report_id = save_incident_report(data, uploaded_by="WhatsApp")
-                    # upload image bytes
-                    raw_bytes = meta.get("raw")
-                    save_incident_image(report_id, raw_bytes, meta["name"])
-                    # mark saved in session list so user sees saved status (do not remove)
-                    # find corresponding session item by name (first match)
-                    for it in st.session_state["whatsapp_items"]:
-                        if it["name"] == meta["name"]:
-                            it["saved"] = True
-                            it["report_id"] = report_id
-                            break
-                    save_results.append((meta["name"], report_id, "ok"))
+                    print(f"DEBUG: WhatsApp Report ID returned: {report_id}, type: {type(report_id)}")
+
+                    if report_id and report_id > 0:
+                        # upload image bytes
+                        raw_bytes = meta.get("raw")
+                        save_incident_image(report_id, raw_bytes, meta["name"])
+                        # mark saved in session list so user sees saved status (do not remove)
+                        # find corresponding session item by name (first match)
+                        for it in st.session_state["whatsapp_items"]:
+                            if it["name"] == meta["name"]:
+                                it["saved"] = True
+                                it["report_id"] = report_id
+                                break
+                        save_results.append((meta["name"], report_id, "ok"))
+                    else:
+                        save_results.append((meta["name"], None, "error: Invalid report ID returned"))
                 except Exception as e:
                     save_results.append((meta["name"], None, f"error: {e}"))
 
