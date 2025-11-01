@@ -415,6 +415,7 @@ def search_page():
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="excel_download"
                 )
+                st.success("✅ Excel workbook ready for download!")
 
             except Exception as e:
                 st.error(f"Error creating Excel workbook: {e}")
