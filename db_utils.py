@@ -466,7 +466,7 @@ def save_incident_report(data, uploaded_by="Unknown"):
         insert_data["created_at"] = datetime.now()
 
         with engine.begin() as conn:
-            result = conn.execute(text("""
+            conn.execute(text("""
                 INSERT INTO incident_reports (
                     incident_date, incident_time, caller, phone_number,
                     location, bound, chainage, num_vehicles, vehicle_type,
@@ -488,7 +488,8 @@ def save_incident_report(data, uploaded_by="Unknown"):
 
             # Get the last inserted row id for SQLite
             result = conn.execute(text("SELECT last_insert_rowid()"))
-            report_id = result.fetchone()[0]
+            row = result.fetchone()
+            report_id = row[0] if row else None
     else:
         # PostgreSQL version
         with engine.begin() as conn:
@@ -513,7 +514,8 @@ def save_incident_report(data, uploaded_by="Unknown"):
                 RETURNING id
             """), insert_data)
 
-            report_id = result.fetchone()[0]
+            row = result.fetchone()
+            report_id = row[0] if row else None
 
     return report_id
 
