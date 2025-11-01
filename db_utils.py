@@ -571,8 +571,6 @@ def get_recent_incident_reports(limit=20):
     return df
 
 def get_incident_images(report_id, only_meta=False):
-    import base64
-    import binascii
     engine = get_sqlalchemy_engine()
     with engine.begin() as conn:
         if only_meta:
@@ -591,69 +589,43 @@ def get_incident_images(report_id, only_meta=False):
             """)
             result = conn.execute(query, {"incident_id": report_id}).mappings().all()
 
-            # Robust image data handling for all cases (binary, base64, hex string, or string-encoded)
+            # Process rows to ensure image_data is always bytes
             processed_rows = []
             for row in result:
                 row_dict = dict(row)
                 image_data = row_dict["image_data"]
 
-                # Handle different data types robustly
+                # Ensure image_data is bytes - this is the key fix
                 if image_data is not None:
-                    if isinstance(image_data, str):
-                        # Check if it's a hex string (like 'ff643866666530303031...')
-                        if all(c in '0123456789abcdefABCDEF' for c in image_data):
-                            try:
-                                # Try hex decoding
-                                image_bytes = binascii.unhexlify(image_data)
-                                print(f"DEBUG: Successfully decoded hex string to {len(image_bytes)} bytes")
-                            except (binascii.Error, ValueError) as e:
-                                print(f"DEBUG: Failed to decode hex string: {e}")
-                                # Not valid hex, try other methods
-                                image_bytes = None
-                        else:
-                            image_bytes = None
-
-                        if image_bytes is None:
-                            # Check if it's a string representation of bytes (like '\xff\xd8\xff...')
-                            if image_data.startswith('\\x') or (len(image_data) > 0 and image_data[0] == '\\' and 'x' in image_data[:10]):
-                                # This is a string representation of bytes, convert it back
-                                try:
-                                    # Remove the surrounding quotes if present and evaluate as Python literal
-                                    import ast
-                                    if image_data.startswith(("'", '"')) and image_data.endswith(("'", '"')):
-                                        image_data = image_data[1:-1]
-                                    # Use ast.literal_eval to safely evaluate the string representation
-                                    image_bytes = ast.literal_eval(f"b'{image_data}'")
-                                    print(f"DEBUG: Successfully decoded string representation to {len(image_bytes)} bytes")
-                                except (ValueError, SyntaxError) as e:
-                                    print(f"DEBUG: Failed to decode string representation: {e}")
-                                    # Fallback: try to decode as latin-1
-                                    image_bytes = image_data.encode('latin-1')
-                            else:
-                                try:
-                                    # Try base64 decoding
-                                    image_bytes = base64.b64decode(image_data)
-                                    print(f"DEBUG: Successfully decoded base64 to {len(image_bytes)} bytes")
-                                except Exception as e:
-                                    print(f"DEBUG: Failed to decode base64: {e}")
-                                    # If not base64, treat as latin-1 encoded bytes stored as text
-                                    image_bytes = image_data.encode('latin-1')
-                    elif isinstance(image_data, memoryview):
+                    if isinstance(image_data, memoryview):
                         # PostgreSQL returns BLOB as memoryview
                         image_bytes = bytes(image_data)
-                        print(f"DEBUG: Converted memoryview to {len(image_bytes)} bytes")
                     elif isinstance(image_data, bytes):
-                        # Already bytes - this is the correct case
+                        # Already bytes - correct format
                         image_bytes = image_data
-                        print(f"DEBUG: Image data already bytes: {len(image_bytes)} bytes")
+                    elif isinstance(image_data, str):
+                        # This indicates data was stored as text - try to recover
+                        print(f"WARNING: Image data retrieved as string (length: {len(image_data)}). This indicates encoding issue during save.")
+                        # Try to decode as hex
+                        import binascii
+                        try:
+                            if all(c in '0123456789abcdefABCDEF' for c in image_data.strip()):
+                                image_bytes = binascii.unhexlify(image_data.strip())
+                                print(f"Recovered hex-encoded image: {len(image_bytes)} bytes")
+                            else:
+                                # Try base64
+                                import base64
+                                image_bytes = base64.b64decode(image_data)
+                                print(f"Recovered base64-encoded image: {len(image_bytes)} bytes")
+                        except Exception as e:
+                            print(f"Could not decode string data: {e}")
+                            # Last resort: encode as latin-1
+                            image_bytes = image_data.encode('latin-1')
                     else:
-                        # For other types, convert to bytes
+                        # Convert other types to bytes
                         try:
                             image_bytes = bytes(image_data)
-                            print(f"DEBUG: Converted other type to {len(image_bytes)} bytes")
-                        except TypeError as e:
-                            print(f"DEBUG: Failed to convert to bytes: {e}")
-                            # Last resort: convert to string then encode
+                        except TypeError:
                             image_bytes = str(image_data).encode('latin-1')
 
                     row_dict["image_data"] = image_bytes
