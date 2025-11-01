@@ -595,7 +595,7 @@ if selected_vehicle:
 
             st.subheader(f"🗺️ Map View for {selected_vehicle}")
 
-            if patrol_logs.iloc[0]["latitude"] and patrol_logs.iloc[0]["longitude"]:
+            if not patrol_logs.empty and patrol_logs.iloc[0]["latitude"] and patrol_logs.iloc[0]["longitude"]:
                 start_lat = patrol_logs.iloc[0]["latitude"]
                 start_lon = patrol_logs.iloc[0]["longitude"]
             else:
