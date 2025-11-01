@@ -233,24 +233,24 @@ def search_page():
         # --- 1. CONSTRUCT QUERY AND FETCH MAIN DATA ---
         if selected_option in ["Accidents", "Incidents"]:
             incident_type = "Accident" if selected_option == "Accidents" else "Incident"
-            query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN ? AND ? AND incident_type = ?"
-            params = (start_date, end_date, incident_type)
+            query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN %s AND %s AND incident_type = %s"
+            params = [start_date, end_date, incident_type]
 
             if vehicle:
-                query += " AND patrol_car = ?"
-                params = params + (vehicle,)
+                query += " AND patrol_car = %s"
+                params.append(vehicle)
 
             contractor = st.session_state.get("contractor")
             if contractor and contractor.lower() in ['wizpro', 'paschal']:
                 contractor_id = 1 if contractor.lower() == 'wizpro' else 2
-                query += " AND contractor_id = ?"
-                params = params + (contractor_id,)
+                query += " AND contractor_id = %s"
+                params.append(contractor_id)
 
             if st.session_state["role"] == "re_admin":
                 contractor_id = st.session_state.get("active_contractor")
                 if contractor_id:
-                    query += " AND contractor_id = ?"
-                    params = params + (contractor_id,)
+                    query += " AND contractor_id = %s"
+                    params.append(contractor_id)
 
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
@@ -265,7 +265,7 @@ def search_page():
                 report_ids = df['id'].tolist()
 
                 # Handling the IN clause parameters
-                placeholders = ','.join(['?'] * len(report_ids))
+                placeholders = ','.join(['%s'] * len(report_ids))
 
                 # Query the image table for BLOB data and metadata
                 # Note the change: incident_images table and incident_id column
@@ -280,17 +280,17 @@ def search_page():
                     st.warning(f"Could not fetch image data from incident_images table: {e}. Download will be data-only.")
 
         elif selected_option == "Breaks":
-            query = "SELECT * FROM breaks WHERE break_date BETWEEN ? AND ?"
-            params = (start_date, end_date)
+            query = "SELECT * FROM breaks WHERE break_date BETWEEN %s AND %s"
+            params = [start_date, end_date]
             if vehicle:
-                query += " AND vehicle = ?"
-                params = params + (vehicle,)
+                query += " AND vehicle = %s"
+                params.append(vehicle)
 
             contractor = st.session_state.get("contractor")
             if contractor and contractor.lower() in ['wizpro', 'paschal']:
                 contractor_id = 1 if contractor.lower() == 'wizpro' else 2
-                query += " AND contractor_id = ?"
-                params = params + (contractor_id,)
+                query += " AND contractor_id = %s"
+                params.append(contractor_id)
 
             try:
                 with engine.connect() as conn:
@@ -299,17 +299,17 @@ def search_page():
                 st.error(f"Database error fetching breaks data: {e}")
 
         elif selected_option == "Pickups":
-            query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN ? AND ?"
-            params = (start_date, end_date)
+            query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN %s AND %s"
+            params = [start_date, end_date]
             if vehicle:
-                query += " AND vehicle = ?"
-                params = params + (vehicle,)
+                query += " AND vehicle = %s"
+                params.append(vehicle)
 
             contractor = st.session_state.get("contractor")
             if contractor and contractor.lower() in ['wizpro', 'paschal']:
                 contractor_id = 1 if contractor.lower() == 'wizpro' else 2
-                query += " AND contractor_id = ?"
-                params = params + (contractor_id,)
+                query += " AND contractor_id = %s"
+                params.append(contractor_id)
 
             try:
                 with engine.connect() as conn:
