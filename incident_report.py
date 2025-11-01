@@ -4,6 +4,7 @@ import datetime
 from db_utils import (
     save_incident_report,
     save_incident_image,
+    save_incident_with_images,
     get_recent_incident_reports,
     get_incident_images,
 )
@@ -411,59 +412,18 @@ def incident_report_page(patrol_vehicle_options=None):
                     "incident_info_resource": ", ".join(incident_info_resource),
                 }
 
-                report_id = save_incident_report(data, uploaded_by="Admin")
-                print(f"DEBUG: Report ID returned: {report_id}, type: {type(report_id)}")
+                # Save incident and images in a single atomic transaction
+                report_id = save_incident_with_images(data, uploaded_by="Admin", image_files=uploaded_photos)
+                print(f"DEBUG: Report ID returned: {report_id}")
 
-                # If no valid ID returned, try to get the last inserted ID
-                if not report_id or report_id <= 0:
-                    try:
-                        # For SQLite, get the last inserted rowid
-                        from db_utils import get_sqlalchemy_engine
-                        engine = get_sqlalchemy_engine()
-                        with engine.begin() as conn:
-                            from sqlalchemy import text
-                            result = conn.execute(text("SELECT last_insert_rowid()"))
-                            last_id = result.fetchone()
-                            if last_id and last_id[0] > 0:
-                                report_id = last_id[0]
-                                print(f"DEBUG: Retrieved last inserted ID: {report_id}")
-                    except Exception as fallback_e:
-                        print(f"DEBUG: Could not retrieve last inserted ID: {fallback_e}")
-
-                # If still no valid ID, create a manual ID based on current timestamp
-                if not report_id or report_id <= 0:
-                    try:
-                        # Generate a unique ID based on timestamp (as fallback)
-                        import time
-                        report_id = int(time.time() * 1000000) % 1000000000  # 9-digit ID
-                        print(f"DEBUG: Generated fallback ID: {report_id}")
-
-                        # Try to update the last inserted record with our generated ID
-                        from db_utils import get_sqlalchemy_engine
-                        engine = get_sqlalchemy_engine()
-                        with engine.begin() as conn:
-                            from sqlalchemy import text
-                            # Update the last inserted record with our generated ID
-                            conn.execute(text("UPDATE incident_reports SET id = :new_id WHERE id = (SELECT MAX(id) FROM incident_reports)"), {"new_id": report_id})
-                            print(f"DEBUG: Updated record with generated ID: {report_id}")
-                    except Exception as manual_e:
-                        print(f"DEBUG: Could not generate manual ID: {manual_e}")
-
-                # Save uploaded photos only if we have a valid ID
-                if report_id and report_id > 0:
-                    if uploaded_photos:
-                        for file in uploaded_photos:
-                            file_bytes = file.read()
-                            # Save as raw bytes directly (no normalization for regular uploads)
-                            save_incident_image(report_id, file_bytes, file.name)
-
-                    st.success(f"✅ Incident report saved successfully! Report ID: {report_id}")
-                else:
-                    st.error("❌ Failed to save incident report - could not create or retrieve valid ID")
-                    return
+                st.success(f"✅ Incident report saved successfully! Report ID: {report_id}")
 
             except Exception as e:
-                st.error(f"Error saving incident report: {e}")
+                st.error(f"❌ Error saving incident report: {e}")
+                st.info("💡 Your data has been preserved. Please check the error and try again.")
+                print(f"ERROR: Failed to save incident report: {e}")
+                import traceback
+                traceback.print_exc()
 
     # ---------------- WhatsApp Import Section ----------------
     st.subheader("📲 Import from WhatsApp")
@@ -811,63 +771,26 @@ def incident_report_page(patrol_vehicle_options=None):
                 }
 
                 try:
-                    report_id = save_incident_report(data, uploaded_by="WhatsApp")
-                    print(f"DEBUG: WhatsApp Report ID returned: {report_id}, type: {type(report_id)}")
-
-                    # If no valid ID returned, try to get the last inserted ID
-                    if not report_id or report_id <= 0:
-                        try:
-                            # For SQLite, get the last inserted rowid
-                            from db_utils import get_sqlalchemy_engine
-                            engine = get_sqlalchemy_engine()
-                            with engine.begin() as conn:
-                                from sqlalchemy import text
-                                result = conn.execute(text("SELECT last_insert_rowid()"))
-                                last_id = result.fetchone()
-                                if last_id and last_id[0] > 0:
-                                    report_id = last_id[0]
-                                    print(f"DEBUG: Retrieved last inserted ID: {report_id}")
-                        except Exception as fallback_e:
-                            print(f"DEBUG: Could not retrieve last inserted ID: {fallback_e}")
-
-                    # If still no valid ID, create a manual ID based on current timestamp
-                    if not report_id or report_id <= 0:
-                        try:
-                            # Generate a unique ID based on timestamp (as fallback)
-                            import time
-                            report_id = int(time.time() * 1000000) % 1000000000  # 9-digit ID
-                            print(f"DEBUG: Generated fallback ID: {report_id}")
-
-                            # Try to insert with this ID (for SQLite, we can specify ID)
-                            from db_utils import get_sqlalchemy_engine
-                            engine = get_sqlalchemy_engine()
-                            with engine.begin() as conn:
-                                from sqlalchemy import text
-                                # Update the last inserted record with our generated ID
-                                conn.execute(text("UPDATE incident_reports SET id = :new_id WHERE id = (SELECT MAX(id) FROM incident_reports)"), {"new_id": report_id})
-                                print(f"DEBUG: Updated record with generated ID: {report_id}")
-                        except Exception as manual_e:
-                            print(f"DEBUG: Could not generate manual ID: {manual_e}")
-
-                    if report_id and report_id > 0:
-                        # upload image bytes - use normalized_raw for saving, raw for display
-                        raw_bytes = meta.get("raw")
-                        if raw_bytes:
-                            save_incident_image(report_id, raw_bytes, meta["name"])
-                            print(f"DEBUG: Saved image {meta['name']} for incident {report_id}")
-                        else:
-                            print(f"WARNING: No image bytes found for {meta['name']}")
-
-                        # mark saved in session list so user sees saved status (do not remove)
-                        # find corresponding session item by name (first match)
-                        for it in st.session_state["whatsapp_items"]:
-                            if it["name"] == meta["name"]:
-                                it["saved"] = True
-                                it["report_id"] = report_id
-                                break
-                        save_results.append((meta["name"], report_id, "ok"))
+                    # Prepare image data as tuple (bytes, name)
+                    raw_bytes = meta.get("raw")
+                    if raw_bytes:
+                        image_data = [(raw_bytes, meta["name"])]
                     else:
-                        save_results.append((meta["name"], None, "error: Could not create or retrieve valid report ID"))
+                        image_data = None
+                        print(f"WARNING: No image bytes found for {meta['name']}")
+                    
+                    # Save incident and image in a single atomic transaction
+                    report_id = save_incident_with_images(data, uploaded_by="WhatsApp", image_files=image_data)
+                    print(f"DEBUG: WhatsApp Report ID returned: {report_id}")
+
+                    # mark saved in session list so user sees saved status (do not remove)
+                    # find corresponding session item by name (first match)
+                    for it in st.session_state["whatsapp_items"]:
+                        if it["name"] == meta["name"]:
+                            it["saved"] = True
+                            it["report_id"] = report_id
+                            break
+                    save_results.append((meta["name"], report_id, "ok"))
                 except Exception as e:
                     save_results.append((meta["name"], None, f"error: {e}"))
 

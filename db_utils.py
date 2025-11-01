@@ -494,7 +494,10 @@ def save_incident_report(data, uploaded_by="Unknown"):
             # Get the last inserted row id for SQLite
             result = conn.execute(text("SELECT last_insert_rowid()"))
             row = result.fetchone()
-            report_id = row[0] if row else 0
+            report_id = row[0] if row else None
+            
+            if not report_id or report_id <= 0:
+                raise Exception("Failed to get valid report ID after insert")
     else:
         # PostgreSQL version
         with engine.begin() as conn:
@@ -520,14 +523,22 @@ def save_incident_report(data, uploaded_by="Unknown"):
             """), insert_data)
 
             row = result.fetchone()
-            report_id = row[0] if row else 0
+            report_id = row[0] if row else None
+            
+            if not report_id or report_id <= 0:
+                raise Exception("Failed to get valid report ID after insert")
 
     return report_id
 
-def save_incident_image(incident_id, image_bytes, image_name):
-    """Save image as raw bytes to ensure proper storage and retrieval"""
-    engine = get_sqlalchemy_engine()
-
+def save_incident_image(incident_id, image_bytes, image_name, conn=None):
+    """Save image as raw bytes to ensure proper storage and retrieval
+    
+    Args:
+        incident_id: The incident report ID
+        image_bytes: Raw image bytes
+        image_name: Name of the image file
+        conn: Optional database connection (for transaction support)
+    """
     # Ensure image_bytes is proper bytes type
     if isinstance(image_bytes, memoryview):
         image_bytes = bytes(image_bytes)
@@ -540,7 +551,8 @@ def save_incident_image(incident_id, image_bytes, image_name):
 
     print(f"DEBUG: Saving image {image_name} for incident {incident_id}: {len(raw_bytes)} bytes as {type(raw_bytes)}")
 
-    with engine.begin() as conn:
+    if conn is not None:
+        # Use provided connection (part of larger transaction)
         conn.execute(text("""
             INSERT INTO incident_images (incident_id, image_data, image_name)
             VALUES (:incident_id, :image_data, :image_name)
@@ -549,8 +561,168 @@ def save_incident_image(incident_id, image_bytes, image_name):
             "image_data": raw_bytes,  # Always raw bytes
             "image_name": image_name
         })
+    else:
+        # Create own transaction
+        engine = get_sqlalchemy_engine()
+        with engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO incident_images (incident_id, image_data, image_name)
+                VALUES (:incident_id, :image_data, :image_name)
+            """), {
+                "incident_id": incident_id,
+                "image_data": raw_bytes,  # Always raw bytes
+                "image_name": image_name
+            })
 
     print(f"DEBUG: Successfully saved image {image_name} for incident {incident_id}")
+
+def save_incident_with_images(data, uploaded_by, image_files=None):
+    """Save incident report and images in a single atomic transaction
+    
+    This ensures that either both the incident and all images are saved,
+    or nothing is saved (preventing orphaned records).
+    
+    Args:
+        data: Dictionary containing incident report data
+        uploaded_by: Username of the person uploading
+        image_files: List of image files (file objects or tuples of (bytes, name))
+        
+    Returns:
+        report_id: The ID of the saved incident report
+        
+    Raises:
+        Exception: If saving fails for any reason
+    """
+    engine = get_sqlalchemy_engine()
+    contractor_id = get_active_contractor()
+    
+    # Prepare data for insertion
+    insert_data = {
+        "incident_date": data.get("incident_date"),
+        "incident_time": str(data.get("incident_time")) if data.get("incident_time") else None,
+        "caller": data.get("caller"),
+        "phone_number": data.get("phone_number"),
+        "location": data.get("location"),
+        "bound": data.get("bound"),
+        "chainage": data.get("chainage"),
+        "num_vehicles": data.get("num_vehicles"),
+        "vehicle_type": data.get("vehicle_type"),
+        "vehicle_condition": data.get("vehicle_condition"),
+        "num_injured": data.get("num_injured"),
+        "cond_injured": data.get("cond_injured"),
+        "injured_part": data.get("injured_part"),
+        "fire_hazard": data.get("fire_hazard"),
+        "oil_leakage": data.get("oil_leakage"),
+        "chemical_leakage": data.get("chemical_leakage"),
+        "damage_road_furniture": data.get("damage_road_furniture"),
+        "response_time": data.get("response_time"),
+        "clearing_time": data.get("clearing_time"),
+        "department_contact": data.get("department_contact"),
+        "description": data.get("description"),
+        "patrol_car": data.get("patrol_car"),
+        "incident_type": data.get("incident_type"),
+        "uploaded_by": uploaded_by,
+        "contractor_id": contractor_id
+    }
+    
+    # Single transaction for both incident and images
+    with engine.begin() as conn:
+        if USE_SQLITE:
+            # SQLite version
+            insert_data["created_at"] = datetime.now()
+            
+            conn.execute(text("""
+                INSERT INTO incident_reports (
+                    incident_date, incident_time, caller, phone_number,
+                    location, bound, chainage, num_vehicles, vehicle_type,
+                    vehicle_condition, num_injured, cond_injured, injured_part,
+                    fire_hazard, oil_leakage, chemical_leakage, damage_road_furniture,
+                    response_time, clearing_time, department_contact,
+                    description, patrol_car, incident_type, created_at,
+                    uploaded_by, contractor_id
+                ) VALUES (
+                    :incident_date, :incident_time, :caller, :phone_number,
+                    :location, :bound, :chainage, :num_vehicles, :vehicle_type,
+                    :vehicle_condition, :num_injured, :cond_injured, :injured_part,
+                    :fire_hazard, :oil_leakage, :chemical_leakage, :damage_road_furniture,
+                    :response_time, :clearing_time, :department_contact,
+                    :description, :patrol_car, :incident_type, :created_at,
+                    :uploaded_by, :contractor_id
+                )
+            """), insert_data)
+            
+            # Get the last inserted row id for SQLite
+            result = conn.execute(text("SELECT last_insert_rowid()"))
+            row = result.fetchone()
+            report_id = row[0] if row else None
+        else:
+            # PostgreSQL version
+            result = conn.execute(text("""
+                INSERT INTO incident_reports (
+                    incident_date, incident_time, caller, phone_number,
+                    location, bound, chainage, num_vehicles, vehicle_type,
+                    vehicle_condition, num_injured, cond_injured, injured_part,
+                    fire_hazard, oil_leakage, chemical_leakage, damage_road_furniture,
+                    response_time, clearing_time, department_contact,
+                    description, patrol_car, incident_type, created_at,
+                    uploaded_by, contractor_id
+                ) VALUES (
+                    :incident_date, :incident_time, :caller, :phone_number,
+                    :location, :bound, :chainage, :num_vehicles, :vehicle_type,
+                    :vehicle_condition, :num_injured, :cond_injured, :injured_part,
+                    :fire_hazard, :oil_leakage, :chemical_leakage, :damage_road_furniture,
+                    :response_time, :clearing_time, :department_contact,
+                    :description, :patrol_car, :incident_type, NOW(),
+                    :uploaded_by, :contractor_id
+                )
+                RETURNING id
+            """), insert_data)
+            
+            row = result.fetchone()
+            report_id = row[0] if row else None
+        
+        if not report_id or report_id <= 0:
+            raise Exception("Failed to get valid report ID after insert")
+        
+        # Save images in the same transaction
+        if image_files:
+            for img_file in image_files:
+                # Handle different input formats
+                if hasattr(img_file, 'read'):
+                    # File-like object
+                    file_bytes = img_file.read()
+                    file_name = getattr(img_file, 'name', 'image.jpg')
+                elif isinstance(img_file, tuple) and len(img_file) == 2:
+                    # Tuple of (bytes, name)
+                    file_bytes, file_name = img_file
+                else:
+                    # Assume it's raw bytes
+                    file_bytes = img_file
+                    file_name = 'image.jpg'
+                
+                # Ensure proper bytes type
+                if isinstance(file_bytes, memoryview):
+                    file_bytes = bytes(file_bytes)
+                elif not isinstance(file_bytes, bytes):
+                    file_bytes = bytes(file_bytes)
+                
+                raw_bytes = bytes(file_bytes)
+                
+                print(f"DEBUG: Saving image {file_name} for incident {report_id}: {len(raw_bytes)} bytes")
+                
+                # Save image in same transaction
+                conn.execute(text("""
+                    INSERT INTO incident_images (incident_id, image_data, image_name)
+                    VALUES (:incident_id, :image_data, :image_name)
+                """), {
+                    "incident_id": report_id,
+                    "image_data": raw_bytes,
+                    "image_name": file_name
+                })
+                
+                print(f"DEBUG: Successfully saved image {file_name} for incident {report_id}")
+    
+    return report_id
 
 def get_recent_incident_reports(limit=20):
     engine = get_sqlalchemy_engine()
