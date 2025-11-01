@@ -429,8 +429,9 @@ def incident_report_page(patrol_vehicle_options=None):
                 caption_from_text = item.get("caption_from_text")
                 try:
                     img = Image.open(io.BytesIO(raw))
-                except Exception:
-                    new_items.append({"name": fname, "raw": raw, "error": "invalid image"})
+                except Exception as e:
+                    # Don't skip invalid images - mark them as having an error but still process them
+                    new_items.append({"name": fname, "raw": raw, "error": f"invalid image: {str(e)}"})
                     continue
 
                 exif_dt = _get_exif_datetime(img)
@@ -506,17 +507,37 @@ def incident_report_page(patrol_vehicle_options=None):
 
                 cols = st.columns([1, 2])
                 with cols[0]:
-                    try:
-                        st.image(p["raw"], use_container_width=True)
-                    except Exception:
-                        st.write("Preview not available.")
+                    if p.get("error"):
+                        st.error(f"⚠️ {p['error']}")
+                        st.write("Raw bytes preview:")
+                        # Show first 200 bytes as hex for debugging
+                        raw_bytes = p["raw"]
+                        if len(raw_bytes) > 200:
+                            st.code(f"First 200 bytes: {raw_bytes[:200].hex()}")
+                        else:
+                            st.code(f"All {len(raw_bytes)} bytes: {raw_bytes.hex()}")
+                    else:
+                        try:
+                            st.image(p["raw"], use_container_width=True)
+                        except Exception as e:
+                            st.error(f"Failed to display image: {e}")
+                            st.write("Raw bytes preview:")
+                            raw_bytes = p["raw"]
+                            if len(raw_bytes) > 200:
+                                st.code(f"First 200 bytes: {raw_bytes[:200].hex()}")
+                            else:
+                                st.code(f"All {len(raw_bytes)} bytes: {raw_bytes.hex()}")
 
                 with cols[1]:
-                    if p.get("exif_dt"):
-                        st.markdown(f"**Extracted timestamp (EXIF):** {p['exif_dt'].isoformat(sep=' ')}")
+                    if p.get("error"):
+                        st.markdown(f"**Error:** {p['error']}")
+                        st.markdown("**Note:** This image has issues but can still be saved and viewed later.")
                     else:
-                        st.markdown("**Extracted timestamp (EXIF):** _not found_")
-                    st.markdown(f"**Detected timestamp (fallback):** {p['detected_dt'].isoformat(sep=' ')}")
+                        if p.get("exif_dt"):
+                            st.markdown(f"**Extracted timestamp (EXIF):** {p['exif_dt'].isoformat(sep=' ')}")
+                        else:
+                            st.markdown("**Extracted timestamp (EXIF):** _not found_")
+                        st.markdown(f"**Detected timestamp (fallback):** {p['detected_dt'].isoformat(sep=' ')}")
 
                     init_dt = p.get("exif_dt") or p.get("detected_dt") or datetime.datetime.utcnow()
                     date_key = f"wa_date_{idx}"
