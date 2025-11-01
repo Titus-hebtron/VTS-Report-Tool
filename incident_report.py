@@ -850,9 +850,14 @@ def incident_report_page(patrol_vehicle_options=None):
                             print(f"DEBUG: Could not generate manual ID: {manual_e}")
 
                     if report_id and report_id > 0:
-                        # upload image bytes
+                        # upload image bytes - use normalized_raw for saving, raw for display
                         raw_bytes = meta.get("raw")
-                        save_incident_image(report_id, raw_bytes, meta["name"])
+                        if raw_bytes:
+                            save_incident_image(report_id, raw_bytes, meta["name"])
+                            print(f"DEBUG: Saved image {meta['name']} for incident {report_id}")
+                        else:
+                            print(f"WARNING: No image bytes found for {meta['name']}")
+
                         # mark saved in session list so user sees saved status (do not remove)
                         # find corresponding session item by name (first match)
                         for it in st.session_state["whatsapp_items"]:
