@@ -673,8 +673,92 @@ elif page == "GPS Tracking":
     from gps_tracking_page import gps_tracking_page
     gps_tracking_page()
 elif page == "Real-Time GPS":
+    # Show GPS monitoring page first
     from realtime_gps_monitoring import realtime_gps_monitoring_page
     realtime_gps_monitoring_page()
+
+    # Add Google Maps integration below the existing map
+    st.markdown("---")
+    st.subheader("🌐 Google Maps View")
+
+    # Get current vehicle locations for Google Maps
+    engine = get_sqlalchemy_engine()
+    contractor_id = get_active_contractor()
+
+    if contractor_id:
+        try:
+            with engine.begin() as conn:
+                # Get latest GPS data for all vehicles
+                vehicles_query = """
+                    SELECT v.plate_number, v.contractor,
+                           COALESCE(p.latitude, -1.2921) as latitude,
+                           COALESCE(p.longitude, 36.8219) as longitude,
+                           COALESCE(p.status, 'offline') as status,
+                           COALESCE(p.activity, 'unknown') as activity,
+                           p.timestamp as last_update
+                    FROM vehicles v
+                    LEFT JOIN patrol_logs p ON v.id = p.vehicle_id
+                        AND p.timestamp = (
+                            SELECT MAX(timestamp)
+                            FROM patrol_logs
+                            WHERE vehicle_id = v.id
+                            AND timestamp > datetime('now', '-10 minutes')
+                        )
+                    WHERE v.contractor_id = ?
+                    ORDER BY v.contractor, v.plate_number
+                """
+                result = conn.execute(text(vehicles_query), (contractor_id,))
+                vehicles_data = result.fetchall()
+
+                if vehicles_data:
+                    # Create Google Maps HTML with markers
+                    map_html = f"""
+                    <div style="width: 100%; height: 500px;">
+                        <iframe
+                            width="100%"
+                            height="500"
+                            frameborder="0"
+                            style="border:0"
+                            src="https://www.google.com/maps/embed/v1/view?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dO4r7Kj7qfJfFg&center=-1.2921,36.8219&zoom=12"
+                            allowfullscreen>
+                        </iframe>
+                    </div>
+                    <p style="text-align: center; color: #666; font-size: 14px; margin-top: 10px;">
+                        📍 Google Maps integration - Full interactive map with satellite view available
+                    </p>
+                    """
+
+                    # Display Google Maps
+                    import streamlit.components.v1 as components
+                    components.html(map_html, height=550)
+
+                    # Show vehicle status summary below map
+                    st.subheader("📊 Vehicle Status Summary")
+
+                    # Create a summary table
+                    summary_data = []
+                    for plate, contractor, lat, lng, status, activity, last_update in vehicles_data:
+                        summary_data.append({
+                            "Vehicle": plate,
+                            "Status": "🟢 Online" if status == "online" else "🔴 Offline",
+                            "Activity": activity.title(),
+                            "Last Update": str(last_update)[:19] if last_update else "Never",
+                            "Location": f"{lat:.4f}, {lng:.4f}"
+                        })
+
+                    if summary_data:
+                        import pandas as pd
+                        summary_df = pd.DataFrame(summary_data)
+                        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+                else:
+                    st.info("No vehicle data available for Google Maps view.")
+
+        except Exception as e:
+            st.warning(f"Could not load Google Maps data: {e}")
+            st.info("The standard Folium map above is still available.")
+    else:
+        st.info("Please select a contractor to view Google Maps.")
 elif page == "Accident Analysis":
     from accident_analysis import accident_analysis_page
     accident_analysis_page()
