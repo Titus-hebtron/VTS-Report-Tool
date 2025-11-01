@@ -170,12 +170,59 @@ for img in images:
 report_id = save_incident_with_images(data, uploaded_by, image_files=images)
 ```
 
+## PostgreSQL Schema Issues Fixed
+
+### Issue: Auto-increment Not Working
+**Problem:** The PostgreSQL database was created from SQLite schema which uses `AUTOINCREMENT`, but this wasn't properly converted to PostgreSQL's `SERIAL` or sequences.
+
+**Symptoms:**
+- `save_incident_report()` returning `None` as ID
+- Error: "Failed to get valid report ID after insert"
+
+**Fix Applied:**
+```sql
+-- Created sequences for auto-increment
+CREATE SEQUENCE incident_reports_id_seq;
+ALTER TABLE incident_reports ALTER COLUMN id SET DEFAULT nextval('incident_reports_id_seq');
+ALTER SEQUENCE incident_reports_id_seq OWNED BY incident_reports.id;
+
+CREATE SEQUENCE incident_images_id_seq;
+ALTER TABLE incident_images ALTER COLUMN id SET DEFAULT nextval('incident_images_id_seq');
+ALTER SEQUENCE incident_images_id_seq OWNED BY incident_images.id;
+```
+
+### Issue: Binary Data Stored as Text
+**Problem:** The `incident_images.image_data` column was `text` instead of `bytea`, causing binary image data to be stored incorrectly.
+
+**Symptoms:**
+- Images retrieved as strings instead of bytes
+- Image display errors
+- Data corruption
+
+**Fix Applied:**
+```sql
+ALTER TABLE incident_images 
+ALTER COLUMN image_data TYPE bytea 
+USING image_data::bytea;
+```
+
+## Migration Script
+
+Run `migrate_postgres_schema.py` to apply these fixes to any PostgreSQL database:
+
+```bash
+python migrate_postgres_schema.py
+```
+
+**Note:** Existing images stored as text may need to be re-uploaded after migration.
+
 ## Files Modified
 
 1. `db_utils.py` - Added transaction-safe saving functions
 2. `incident_report.py` - Simplified to use new functions
-3. `INCIDENT_SAVING_FIXES.md` - This documentation
+3. `migrate_postgres_schema.py` - PostgreSQL schema migration script
+4. `INCIDENT_SAVING_FIXES.md` - This documentation
 
 ---
-**Date:** 2024
-**Status:** ✅ Complete and Tested
+**Date:** November 1, 2025
+**Status:** ✅ Complete and Tested (SQLite + PostgreSQL)
