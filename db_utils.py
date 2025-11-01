@@ -533,6 +533,11 @@ def save_incident_image(incident_id, image_bytes, image_name):
     elif not isinstance(image_bytes, bytes):
         image_bytes = bytes(image_bytes)
 
+    # For SQLite, ensure we don't accidentally encode as text
+    if USE_SQLITE:
+        # Explicitly ensure it's bytes for SQLite BLOB storage
+        image_bytes = bytes(image_bytes)
+
     with engine.begin() as conn:
         conn.execute(text("""
             INSERT INTO incident_images (incident_id, image_data, image_name)
@@ -600,7 +605,9 @@ def get_incident_images(report_id, only_meta=False):
                             try:
                                 # Try hex decoding
                                 image_bytes = binascii.unhexlify(image_data)
-                            except (binascii.Error, ValueError):
+                                print(f"DEBUG: Successfully decoded hex string to {len(image_bytes)} bytes")
+                            except (binascii.Error, ValueError) as e:
+                                print(f"DEBUG: Failed to decode hex string: {e}")
                                 # Not valid hex, try other methods
                                 image_bytes = None
                         else:
@@ -617,27 +624,35 @@ def get_incident_images(report_id, only_meta=False):
                                         image_data = image_data[1:-1]
                                     # Use ast.literal_eval to safely evaluate the string representation
                                     image_bytes = ast.literal_eval(f"b'{image_data}'")
-                                except (ValueError, SyntaxError):
+                                    print(f"DEBUG: Successfully decoded string representation to {len(image_bytes)} bytes")
+                                except (ValueError, SyntaxError) as e:
+                                    print(f"DEBUG: Failed to decode string representation: {e}")
                                     # Fallback: try to decode as latin-1
                                     image_bytes = image_data.encode('latin-1')
                             else:
                                 try:
                                     # Try base64 decoding
                                     image_bytes = base64.b64decode(image_data)
-                                except Exception:
+                                    print(f"DEBUG: Successfully decoded base64 to {len(image_bytes)} bytes")
+                                except Exception as e:
+                                    print(f"DEBUG: Failed to decode base64: {e}")
                                     # If not base64, treat as latin-1 encoded bytes stored as text
                                     image_bytes = image_data.encode('latin-1')
                     elif isinstance(image_data, memoryview):
                         # PostgreSQL returns BLOB as memoryview
                         image_bytes = bytes(image_data)
+                        print(f"DEBUG: Converted memoryview to {len(image_bytes)} bytes")
                     elif isinstance(image_data, bytes):
-                        # Already bytes
+                        # Already bytes - this is the correct case
                         image_bytes = image_data
+                        print(f"DEBUG: Image data already bytes: {len(image_bytes)} bytes")
                     else:
                         # For other types, convert to bytes
                         try:
                             image_bytes = bytes(image_data)
-                        except TypeError:
+                            print(f"DEBUG: Converted other type to {len(image_bytes)} bytes")
+                        except TypeError as e:
+                            print(f"DEBUG: Failed to convert to bytes: {e}")
                             # Last resort: convert to string then encode
                             image_bytes = str(image_data).encode('latin-1')
 
