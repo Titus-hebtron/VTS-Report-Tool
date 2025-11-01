@@ -925,23 +925,20 @@ def incident_report_page(patrol_vehicle_options=None):
                             else:
                                 st.code(f"First 100 bytes: {image_bytes[:100].hex()}")
 
-                            # Try to decode as text to see if it's stored as raw text
-                            try:
-                                text_content = image_bytes.decode('utf-8', errors='ignore')
-                                if len(text_content) > 0 and len(text_content) < 500:
-                                    st.info("Content appears to be text data:")
-                                    st.code(text_content[:500])
-
-                                    # Check if it looks like hex data that needs decoding
-                                    if all(c in '0123456789abcdefABCDEF' for c in text_content.strip()):
-                                        st.info("This looks like hex-encoded data. Try decoding it:")
+                            # Check if this is hex-encoded data that needs decoding
+                            if isinstance(image_bytes, bytes) and len(image_bytes) > 0:
+                                try:
+                                    # Try to decode as hex string
+                                    hex_string = image_bytes.decode('utf-8', errors='ignore').strip()
+                                    if all(c in '0123456789abcdefABCDEF' for c in hex_string) and len(hex_string) > 100:
+                                        st.info("This looks like hex-encoded image data. Attempting to decode:")
                                         try:
-                                            decoded_bytes = bytes.fromhex(text_content.strip())
-                                            st.code(f"Decoded first 100 bytes: {decoded_bytes[:100].hex()}")
+                                            decoded_bytes = bytes.fromhex(hex_string)
+                                            st.code(f"Decoded to {len(decoded_bytes)} bytes")
                                             # Try to display the decoded image
                                             try:
                                                 normalized_decoded = _normalize_image(decoded_bytes)
-                                                st.success("✅ Hex-decoded data is valid image! Displaying:")
+                                                st.success("✅ Successfully decoded and normalized hex data! Displaying:")
                                                 st.image(normalized_decoded, caption=f"{img_name} (hex-decoded) - Incident ID: {selected_id}", width='stretch')
                                                 # Successfully displayed, skip further error processing
                                                 st.stop()
@@ -949,8 +946,10 @@ def incident_report_page(patrol_vehicle_options=None):
                                                 st.error(f"❌ Hex-decoded data is not a valid image: {decode_e}")
                                         except Exception as hex_e:
                                             st.error(f"❌ Could not decode hex data: {hex_e}")
-                            except:
-                                pass
+                                    else:
+                                        st.info("Data doesn't appear to be hex-encoded.")
+                                except Exception as text_e:
+                                    st.error(f"❌ Could not process as text: {text_e}")
                     else:
                         st.info("No images uploaded for this incident.")
                 else:
