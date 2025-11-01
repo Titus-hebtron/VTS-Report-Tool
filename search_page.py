@@ -352,6 +352,7 @@ def search_page():
 
                     # Embed images if applicable
                     if selected_option in ["Accidents", "Incidents"] and not image_df.empty and temp_dir:
+                        st.info("📸 Embedding images into Excel workbook...")
                         for index, row in df.iterrows():
                             report_id = row.get('id')
                             if report_id:
@@ -401,6 +402,7 @@ def search_page():
                                             continue
 
                                     current_row += 2
+                        st.success("✅ Images embedded successfully!")
 
                 # --- DOWNLOAD BUTTON FOR EXCEL WORKBOOK ---
                 contractor_name = st.session_state.get("contractor", "unknown").capitalize()
