@@ -142,14 +142,14 @@ def realtime_gps_monitoring_page():
         st.metric("Total Vehicles", total_vehicles)
     with col2:
         online_count = len(vehicles_df[vehicles_df['status'] == 'online'])
-        st.metric("Online Now", online_count, delta=f"{online_count}/{total_vehicles}")
+        st.metric("Online Now", online_count)
     with col3:
         offline_count = len(vehicles_df[vehicles_df['status'] == 'offline'])
         st.metric("Offline", offline_count)
     with col4:
         active_tracking = len(vehicles_df[
             (vehicles_df['status'] == 'online') &
-            (vehicles_df['activity'].isin(['moving', 'idle']))
+            (vehicles_df['activity'].isin(['moving', 'idle', 'patrol']))
         ])
         st.metric("Actively Tracking", active_tracking)
 
