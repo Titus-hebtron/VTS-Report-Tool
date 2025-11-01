@@ -255,7 +255,7 @@ def search_page():
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
                 with engine.connect() as conn:
-                    df = pd.read_sql_query(query, conn, params=params)
+                    df = pd.read_sql_query(query, conn, params=tuple(params))
             except Exception as e:
                 st.error(f"Database error fetching incident data: {e}")
 
@@ -294,7 +294,7 @@ def search_page():
 
             try:
                 with engine.connect() as conn:
-                    df = pd.read_sql_query(query, conn, params=params)
+                    df = pd.read_sql_query(query, conn, params=tuple(params))
             except Exception as e:
                 st.error(f"Database error fetching breaks data: {e}")
 
@@ -313,7 +313,7 @@ def search_page():
 
             try:
                 with engine.connect() as conn:
-                    df = pd.read_sql_query(query, conn, params=params)
+                    df = pd.read_sql_query(query, conn, params=tuple(params))
             except Exception as e:
                 st.error(f"Database error fetching pickups data: {e}")
 
