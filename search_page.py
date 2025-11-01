@@ -405,11 +405,13 @@ def search_page():
                 # --- DOWNLOAD BUTTON FOR EXCEL WORKBOOK ---
                 contractor_name = st.session_state.get("contractor", "unknown").capitalize()
                 date_range = f"{start_date}_to_{end_date}"
+                excel_data = output.getvalue()
                 st.download_button(
                     label="⬇️ Download Excel Workbook",
-                    data=output.getvalue(),
+                    data=excel_data,
                     file_name=f"{contractor_name}_{selected_option.lower()}_workbook_{date_range}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="excel_download"
                 )
 
             except Exception as e:
@@ -422,12 +424,13 @@ def search_page():
                     shutil.rmtree(temp_dir)
 
             # CSV Download
-            csv = df.to_csv(index=False).encode('utf-8')
+            csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="⬇️ Download Data as CSV",
-                data=csv,
+                data=csv_data,
                 file_name=f"{selected_option.lower()}_results.csv",
-                mime="text/csv"
+                mime="text/csv",
+                key="csv_download"
             )
         else:
             st.info("No data found for your search.")
