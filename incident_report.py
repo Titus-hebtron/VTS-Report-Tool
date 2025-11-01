@@ -418,9 +418,8 @@ def incident_report_page(patrol_vehicle_options=None):
                 if uploaded_photos:
                     for file in uploaded_photos:
                         file_bytes = file.read()
-                        # Normalize and compress before saving
-                        normalized_bytes = _normalize_image(file_bytes)
-                        save_incident_image(report_id, normalized_bytes, file.name)
+                        # Save as raw bytes directly (no normalization for regular uploads)
+                        save_incident_image(report_id, file_bytes, file.name)
 
                 if report_id and report_id > 0:
                     st.success(f"✅ Incident report saved successfully! Report ID: {report_id}")
