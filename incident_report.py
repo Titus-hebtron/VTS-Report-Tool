@@ -417,7 +417,7 @@ def incident_report_page(patrol_vehicle_options=None):
                         normalized_bytes = _normalize_image(file_bytes)
                         save_incident_image(report_id, normalized_bytes, file.name)
 
-                st.success("✅ Incident report saved successfully!")
+                st.success(f"✅ Incident report saved successfully! Report ID: {report_id}")
 
             except Exception as e:
                 st.error(f"Error saving incident report: {e}")
@@ -780,7 +780,8 @@ def incident_report_page(patrol_vehicle_options=None):
             st.success(f"Saved {ok_count}/{len(save_results)} reports.")
             for name, rid, status in save_results:
                 if status == "ok":
-                    st.write(f"- {name} → report_id: {rid}")
+                    st.write(f"- {name} → **Incident ID: {rid}**")
+                    st.markdown(f"  📎 **Linked to Incident ID {rid}** - Images can be viewed in the Recent Reports section")
                 else:
                     st.write(f"- {name} → {status}")
 
@@ -800,6 +801,7 @@ def incident_report_page(patrol_vehicle_options=None):
         st.subheader("🖼️ Incident Photos")
         selected_id = st.selectbox("Select Incident ID to view photos", df["id"].tolist())
         if selected_id:
+            st.markdown(f"**Viewing images for Incident ID: {selected_id}**")
             images_meta = get_incident_images(selected_id, only_meta=True)  # only metadata
             if images_meta:
                 img_name = st.selectbox("Select Image", [img["image_name"] for img in images_meta])
@@ -819,7 +821,7 @@ def incident_report_page(patrol_vehicle_options=None):
                         from PIL import Image
                         import io
                         Image.open(io.BytesIO(image_bytes))
-                        st.image(image_bytes, caption=img_name, width='stretch')
+                        st.image(image_bytes, caption=f"{img_name} (Incident ID: {selected_id})", width='stretch')
                     except Exception as e:
                         st.error(f"❌ Invalid image data for {img_name}: {e}")
                         st.info("This image file appears to be corrupted or in an unsupported format.")
@@ -849,7 +851,7 @@ def incident_report_page(patrol_vehicle_options=None):
                                             import io
                                             Image.open(io.BytesIO(decoded_bytes))
                                             st.success("✅ Hex-decoded data is valid image! Displaying:")
-                                            st.image(decoded_bytes, caption=f"{img_name} (hex-decoded)", width='stretch')
+                                            st.image(decoded_bytes, caption=f"{img_name} (hex-decoded) - Incident ID: {selected_id}", width='stretch')
                                             # Successfully displayed, skip further error processing
                                             st.stop()
                                         except Exception as decode_e:
