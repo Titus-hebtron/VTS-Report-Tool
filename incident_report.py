@@ -790,6 +790,8 @@ def incident_report_page(patrol_vehicle_options=None):
                                         st.error(f"❌ Could not decode hex data: {hex_e}")
                         except:
                             pass
+                    else:
+                        st.info("No images uploaded for this incident.")
                 else:
                     st.info("No images uploaded for this incident.")
             else:
