@@ -391,7 +391,16 @@ def search_page():
                                                     print(f"Decoded base64 image data for {img_name}: {len(img_data_blob)} bytes")
                                             except Exception as decode_e:
                                                 print(f"Failed to decode image data for {img_name}: {decode_e}")
-                                                continue
+                                                # Try latin-1 encoding as fallback
+                                                try:
+                                                    img_data_blob = img_data_blob.encode('latin-1')
+                                                    print(f"Fallback: Encoded as latin-1 for {img_name}: {len(img_data_blob)} bytes")
+                                                except Exception as latin_e:
+                                                    print(f"Complete failure for {img_name}: {latin_e}")
+                                                    continue
+                                        elif isinstance(img_data_blob, memoryview):
+                                            img_data_blob = bytes(img_data_blob)
+                                            print(f"Converted memoryview to bytes for {img_name}: {len(img_data_blob)} bytes")
 
                                         if not img_data_blob or not isinstance(img_data_blob, bytes) or len(img_data_blob) == 0:
                                             continue
