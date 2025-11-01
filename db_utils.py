@@ -273,7 +273,7 @@ def save_incident_report(data, uploaded_by="Unknown"):
         # Get the last inserted row id for SQLite
         result = conn.execute(text("SELECT last_insert_rowid()"))
         row = result.fetchone()
-        report_id = row[0] if row else None
+        report_id = row[0] if row else 0
 
     return report_id
 
@@ -490,7 +490,7 @@ def save_incident_report(data, uploaded_by="Unknown"):
             # Get the last inserted row id for SQLite
             result = conn.execute(text("SELECT last_insert_rowid()"))
             row = result.fetchone()
-            report_id = row[0] if row else None
+            report_id = row[0] if row else 0
     else:
         # PostgreSQL version
         with engine.begin() as conn:
