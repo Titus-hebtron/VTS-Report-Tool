@@ -525,6 +525,7 @@ def save_incident_report(data, uploaded_by="Unknown"):
     return report_id
 
 def save_incident_image(incident_id, image_bytes, image_name):
+    """Save image as raw bytes to ensure proper storage and retrieval"""
     engine = get_sqlalchemy_engine()
 
     # Ensure image_bytes is proper bytes type
@@ -533,10 +534,11 @@ def save_incident_image(incident_id, image_bytes, image_name):
     elif not isinstance(image_bytes, bytes):
         image_bytes = bytes(image_bytes)
 
-    # For SQLite, ensure we don't accidentally encode as text
-    if USE_SQLITE:
-        # Explicitly ensure it's bytes for SQLite BLOB storage
-        image_bytes = bytes(image_bytes)
+    # Critical: Ensure we save as raw bytes, not encoded strings
+    # Convert to raw bytes and ensure no string conversion happens
+    raw_bytes = bytes(image_bytes)
+
+    print(f"DEBUG: Saving image {image_name} for incident {incident_id}: {len(raw_bytes)} bytes as {type(raw_bytes)}")
 
     with engine.begin() as conn:
         conn.execute(text("""
@@ -544,9 +546,11 @@ def save_incident_image(incident_id, image_bytes, image_name):
             VALUES (:incident_id, :image_data, :image_name)
         """), {
             "incident_id": incident_id,
-            "image_data": image_bytes,  # Now guaranteed to be bytes
+            "image_data": raw_bytes,  # Always raw bytes
             "image_name": image_name
         })
+
+    print(f"DEBUG: Successfully saved image {image_name} for incident {incident_id}")
 
 def get_recent_incident_reports(limit=20):
     engine = get_sqlalchemy_engine()
@@ -571,6 +575,7 @@ def get_recent_incident_reports(limit=20):
     return df
 
 def get_incident_images(report_id, only_meta=False):
+    """Retrieve images ensuring they are returned as proper bytes"""
     engine = get_sqlalchemy_engine()
     with engine.begin() as conn:
         if only_meta:
@@ -589,46 +594,57 @@ def get_incident_images(report_id, only_meta=False):
             """)
             result = conn.execute(query, {"incident_id": report_id}).mappings().all()
 
-            # Process rows to ensure image_data is always bytes
+            # Process rows to ensure image_data is always proper bytes
             processed_rows = []
             for row in result:
                 row_dict = dict(row)
                 image_data = row_dict["image_data"]
 
-                # Ensure image_data is bytes - this is the key fix
+                print(f"DEBUG: Retrieved image data type: {type(image_data)}, length: {len(image_data) if image_data else 0}")
+
+                # Ensure image_data is proper bytes for image display
                 if image_data is not None:
                     if isinstance(image_data, memoryview):
                         # PostgreSQL returns BLOB as memoryview
                         image_bytes = bytes(image_data)
+                        print(f"DEBUG: Converted memoryview to bytes: {len(image_bytes)} bytes")
                     elif isinstance(image_data, bytes):
-                        # Already bytes - correct format
+                        # Already bytes - this should be the normal case
                         image_bytes = image_data
+                        print(f"DEBUG: Image data already bytes: {len(image_bytes)} bytes")
                     elif isinstance(image_data, str):
-                        # This indicates data was stored as text - try to recover
-                        print(f"WARNING: Image data retrieved as string (length: {len(image_data)}). This indicates encoding issue during save.")
-                        # Try to decode as hex
+                        # This indicates data was stored as text - major issue
+                        print(f"ERROR: Image data retrieved as string! This indicates improper storage. Length: {len(image_data)}")
+                        print(f"First 50 chars: {image_data[:50]}")
+
+                        # Try to decode as hex (most common issue)
                         import binascii
                         try:
                             if all(c in '0123456789abcdefABCDEF' for c in image_data.strip()):
                                 image_bytes = binascii.unhexlify(image_data.strip())
-                                print(f"Recovered hex-encoded image: {len(image_bytes)} bytes")
+                                print(f"SUCCESS: Recovered hex-encoded image: {len(image_bytes)} bytes")
                             else:
                                 # Try base64
                                 import base64
                                 image_bytes = base64.b64decode(image_data)
-                                print(f"Recovered base64-encoded image: {len(image_bytes)} bytes")
+                                print(f"SUCCESS: Recovered base64-encoded image: {len(image_bytes)} bytes")
                         except Exception as e:
-                            print(f"Could not decode string data: {e}")
+                            print(f"FAILED: Could not decode string data: {e}")
                             # Last resort: encode as latin-1
                             image_bytes = image_data.encode('latin-1')
+                            print(f"FALLBACK: Encoded as latin-1: {len(image_bytes)} bytes")
                     else:
                         # Convert other types to bytes
                         try:
                             image_bytes = bytes(image_data)
+                            print(f"DEBUG: Converted other type to bytes: {len(image_bytes)} bytes")
                         except TypeError:
                             image_bytes = str(image_data).encode('latin-1')
+                            print(f"DEBUG: Converted via string to bytes: {len(image_bytes)} bytes")
 
                     row_dict["image_data"] = image_bytes
+                else:
+                    print("WARNING: Image data is None")
 
                 processed_rows.append(row_dict)
             return processed_rows
