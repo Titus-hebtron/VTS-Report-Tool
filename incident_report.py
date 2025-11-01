@@ -57,6 +57,47 @@ def _parse_captions_input(text):
         mapping[fname.strip()] = cap.strip()
     return mapping
 
+# helper: normalize and compress image
+def _normalize_image(image_bytes, quality=75):
+    """
+    Normalize image to standard JPEG format, compress, and return bytes.
+    This fixes issues with WhatsApp images and reduces file size.
+    """
+    try:
+        # Open image
+        img = Image.open(io.BytesIO(image_bytes))
+
+        # Convert to RGB if necessary (removes alpha channel, fixes CMYK issues)
+        if img.mode not in ('RGB', 'L'):
+            img = img.convert('RGB')
+
+        # Auto-rotate based on EXIF orientation
+        try:
+            for orientation in ExifTags.TAGS.keys():
+                if ExifTags.TAGS[orientation] == 'Orientation':
+                    break
+            exif = img._getexif()
+            if exif is not None:
+                orientation = exif.get(orientation, 1)
+                if orientation == 3:
+                    img = img.rotate(180, expand=True)
+                elif orientation == 6:
+                    img = img.rotate(270, expand=True)
+                elif orientation == 8:
+                    img = img.rotate(90, expand=True)
+        except Exception:
+            pass  # Skip rotation if EXIF reading fails
+
+        # Compress and save as JPEG
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=quality, optimize=True)
+        return output.getvalue()
+
+    except Exception as e:
+        # If normalization fails, return original bytes
+        print(f"Image normalization failed: {e}")
+        return image_bytes
+
 # helper: EXIF datetime
 def _get_exif_datetime(img):
     try:
@@ -372,7 +413,9 @@ def incident_report_page(patrol_vehicle_options=None):
                 if uploaded_photos:
                     for file in uploaded_photos:
                         file_bytes = file.read()
-                        save_incident_image(report_id, file_bytes, file.name)
+                        # Normalize and compress before saving
+                        normalized_bytes = _normalize_image(file_bytes)
+                        save_incident_image(report_id, normalized_bytes, file.name)
 
                 st.success("✅ Incident report saved successfully!")
 
@@ -427,11 +470,14 @@ def incident_report_page(patrol_vehicle_options=None):
                 fname = item["name"]
                 raw = item["data"]
                 caption_from_text = item.get("caption_from_text")
+                # Normalize and compress the image
+                normalized_raw = _normalize_image(raw)
+
                 try:
-                    img = Image.open(io.BytesIO(raw))
+                    img = Image.open(io.BytesIO(normalized_raw))
                 except Exception as e:
                     # Don't skip invalid images - mark them as having an error but still process them
-                    new_items.append({"name": fname, "raw": raw, "error": f"invalid image: {str(e)}"})
+                    new_items.append({"name": fname, "raw": normalized_raw, "error": f"invalid image: {str(e)}"})
                     continue
 
                 exif_dt = _get_exif_datetime(img)
