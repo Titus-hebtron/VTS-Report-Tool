@@ -477,7 +477,8 @@ def incident_report_page(patrol_vehicle_options=None):
                     img = Image.open(io.BytesIO(normalized_raw))
                 except Exception as e:
                     # Don't skip invalid images - mark them as having an error but still process them
-                    new_items.append({"name": fname, "raw": normalized_raw, "error": f"invalid image: {str(e)}"})
+                    # Use original raw bytes for display, but normalized for processing
+                    new_items.append({"name": fname, "raw": raw, "normalized_raw": normalized_raw, "error": f"invalid image: {str(e)}"})
                     continue
 
                 exif_dt = _get_exif_datetime(img)
@@ -507,6 +508,7 @@ def incident_report_page(patrol_vehicle_options=None):
                 new_items.append({
                     "name": fname,
                     "raw": raw,
+                    "normalized_raw": normalized_raw,
                     "exif_dt": exif_dt,
                     "detected_dt": incident_dt,
                     "exif_gps": exif_gps,
@@ -673,7 +675,7 @@ def incident_report_page(patrol_vehicle_options=None):
                     editable_items_meta.append({
                         "idx": idx,
                         "name": p["name"],
-                        "raw": p["raw"],
+                        "raw": p.get("normalized_raw", p["raw"]),  # Use normalized for saving, original for display
                         "date_key": date_key,
                         "time_key": time_key,
                         "loc_key": loc_key,
