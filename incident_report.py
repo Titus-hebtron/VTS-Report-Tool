@@ -875,8 +875,10 @@ def incident_report_page(patrol_vehicle_options=None):
             st.success(f"Saved {ok_count}/{len(save_results)} reports.")
             for name, rid, status in save_results:
                 if status == "ok":
-                    st.write(f"- {name} → **Incident ID: {rid}**")
-                    st.markdown(f"  📎 **Linked to Incident ID {rid}** - Images can be viewed in the Recent Reports section")
+                    # Convert rid to int to remove .0 decimal
+                    incident_id = int(rid) if rid else rid
+                    st.write(f"- {name} → **Incident ID: {incident_id}**")
+                    st.markdown(f"  📎 **Linked to Incident ID {incident_id}** - Images can be viewed in the Recent Reports section")
                 else:
                     st.write(f"- {name} → {status}")
 
@@ -896,7 +898,9 @@ def incident_report_page(patrol_vehicle_options=None):
         st.subheader("🖼️ Incident Photos")
         selected_id = st.selectbox("Select Incident ID to view photos", df["id"].tolist())
         if selected_id:
-            st.markdown(f"**Viewing images for Incident ID: {selected_id}**")
+            # Convert selected_id to int to remove .0 decimal
+            display_id = int(selected_id) if isinstance(selected_id, (int, float)) and selected_id == int(selected_id) else selected_id
+            st.markdown(f"**Viewing images for Incident ID: {display_id}**")
             images_meta = get_incident_images(selected_id, only_meta=True)  # only metadata
             if images_meta:
                 img_name = st.selectbox("Select Image", [img["image_name"] for img in images_meta])
@@ -913,7 +917,7 @@ def incident_report_page(patrol_vehicle_options=None):
                     # Validate that we have valid image data before displaying
                     try:
                         # First try to display as-is (for properly saved images)
-                        st.image(image_bytes, caption=f"{img_name} (Incident ID: {selected_id})", width='stretch')
+                        st.image(image_bytes, caption=f"{img_name} (Incident ID: {display_id})", width='stretch')
                     except Exception as e:
                         st.warning(f"⚠️ Could not display image directly, trying normalization: {e}")
                         try:
@@ -944,7 +948,7 @@ def incident_report_page(patrol_vehicle_options=None):
                                             try:
                                                 normalized_decoded = _normalize_image(decoded_bytes)
                                                 st.success("✅ Successfully decoded and normalized hex data! Displaying:")
-                                                st.image(normalized_decoded, caption=f"{img_name} (hex-decoded) - Incident ID: {selected_id}", width='stretch')
+                                                st.image(normalized_decoded, caption=f"{img_name} (hex-decoded) - Incident ID: {display_id}", width='stretch')
                                                 # Successfully displayed, skip further error processing
                                                 st.stop()
                                             except Exception as decode_e:
