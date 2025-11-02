@@ -168,9 +168,15 @@ def breaks_pickups_page():
                         "contractor_id": contractor_id
                     }
                 )
-                # For SQLite, get the last inserted row id
-                result = conn.execute(text("SELECT last_insert_rowid()"))
-                pickup_id = result.fetchone()[0]
+                # Get the last inserted row id (works for both SQLite and PostgreSQL)
+                from db_utils import USE_SQLITE
+                if USE_SQLITE:
+                    result = conn.execute(text("SELECT last_insert_rowid()"))
+                    pickup_id = result.fetchone()[0]
+                else:
+                    # For PostgreSQL, use RETURNING clause
+                    result = conn.execute(text("SELECT currval('pickups_id_seq')"))
+                    pickup_id = result.fetchone()[0]
 
             if pickup_photo:
                 photo_bytes = pickup_photo.read()
