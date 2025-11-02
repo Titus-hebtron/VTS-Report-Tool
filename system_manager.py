@@ -586,18 +586,41 @@ def data_management_section():
     try:
         engine = get_sqlalchemy_engine()
 
-        # Get data statistics
-        stats_query = """
-            SELECT
-                (SELECT COUNT(*) FROM incident_reports) as incident_count,
-                (SELECT COUNT(*) FROM incident_images) as image_count,
-                (SELECT COUNT(*) FROM idle_reports) as idle_count,
-                (SELECT COUNT(*) FROM patrol_logs) as patrol_count,
-                (SELECT COUNT(*) FROM breaks) as break_count,
-                (SELECT COUNT(*) FROM pickups) as pickup_count,
-                (SELECT COUNT(*) FROM vehicles) as vehicle_count
-        """
-        stats = pd.read_sql_query(text(stats_query), engine).iloc[0]
+        # Get data statistics - handle missing tables gracefully
+        try:
+            stats_query = """
+                SELECT
+                    (SELECT COUNT(*) FROM incident_reports) as incident_count,
+                    (SELECT COUNT(*) FROM incident_images) as image_count,
+                    (SELECT COUNT(*) FROM idle_reports) as idle_count,
+                    (SELECT COUNT(*) FROM patrol_logs) as patrol_count,
+                    (SELECT COUNT(*) FROM breaks) as break_count,
+                    (SELECT COUNT(*) FROM pickups) as pickup_count,
+                    (SELECT COUNT(*) FROM vehicles) as vehicle_count
+            """
+            stats = pd.read_sql_query(text(stats_query), engine).iloc[0]
+        except Exception as e:
+            # If some tables don't exist, get counts for existing tables only
+            st.warning("⚠️ Some database tables may not exist. Getting statistics for available tables...")
+            stats = {'incident_count': 0, 'image_count': 0, 'idle_count': 0, 'patrol_count': 0, 'break_count': 0, 'pickup_count': 0, 'vehicle_count': 0}
+
+            # Try to get counts for each table individually
+            tables_to_check = [
+                ('incident_reports', 'incident_count'),
+                ('incident_images', 'image_count'),
+                ('idle_reports', 'idle_count'),
+                ('patrol_logs', 'patrol_count'),
+                ('breaks', 'break_count'),
+                ('pickups', 'pickup_count'),
+                ('vehicles', 'vehicle_count')
+            ]
+
+            for table_name, count_key in tables_to_check:
+                try:
+                    result = pd.read_sql_query(text(f"SELECT COUNT(*) as count FROM {table_name}"), engine)
+                    stats[count_key] = result.iloc[0]['count']
+                except Exception:
+                    stats[count_key] = 0  # Table doesn't exist
 
         # Database usage and space information
         st.subheader("💾 Database Usage & Storage")
