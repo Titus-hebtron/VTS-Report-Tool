@@ -580,15 +580,15 @@ def delete_vehicle(vehicle_id, plate_number):
 def data_management_section():
     """Data management section for deleting records"""
     st.subheader("🗑️ Data Management")
-    
+
     st.warning("⚠️ **Warning:** Deleting data is permanent and cannot be undone. Please ensure you have recent backups before proceeding.")
 
     try:
         engine = get_sqlalchemy_engine()
-        
+
         # Get data statistics
         stats_query = """
-            SELECT 
+            SELECT
                 (SELECT COUNT(*) FROM incident_reports) as incident_count,
                 (SELECT COUNT(*) FROM incident_images) as image_count,
                 (SELECT COUNT(*) FROM idle_reports) as idle_count,
@@ -598,6 +598,35 @@ def data_management_section():
                 (SELECT COUNT(*) FROM vehicles) as vehicle_count
         """
         stats = pd.read_sql_query(text(stats_query), engine).iloc[0]
+
+        # Database usage and space information
+        st.subheader("💾 Database Usage & Storage")
+
+        # Get database file size (SQLite only)
+        db_size_mb = 0
+        if USE_SQLITE:
+            import os
+            db_path = 'vts_database.db'
+            if os.path.exists(db_path):
+                db_size_mb = os.path.getsize(db_path) / (1024 * 1024)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Database Size", f"{db_size_mb:.2f} MB")
+        with col2:
+            # Estimate remaining space (rough estimate)
+            estimated_remaining = max(0, 100 - db_size_mb)  # Assuming 100MB limit for demo
+            st.metric("Est. Remaining Space", f"{estimated_remaining:.1f} MB")
+        with col3:
+            usage_percent = min(100, (db_size_mb / 100) * 100) if db_size_mb > 0 else 0
+            st.metric("Usage", f"{usage_percent:.1f}%")
+
+        if db_size_mb > 80:
+            st.error("⚠️ Database size is getting large. Consider archiving old data or creating backups.")
+        elif db_size_mb > 50:
+            st.warning("⚠️ Database size is moderate. Monitor growth and plan for archiving.")
+
+        st.markdown("---")
 
         # Display statistics
         st.subheader("📊 Database Statistics")
@@ -619,6 +648,9 @@ def data_management_section():
         # Delete operations
         st.subheader("🗑️ Delete Operations")
 
+        # Secret key for deletion confirmation
+        st.markdown("🔐 **Security:** All deletion operations require entering the secret key 'Hebtron' for confirmation.")
+
         # Get contractors for filtering
         contractors_df = pd.read_sql_query(text("SELECT id, name FROM contractors ORDER BY name"), engine)
         contractor_options = ["All Contractors"] + list(contractors_df['name'])
@@ -631,26 +663,32 @@ def data_management_section():
             with col2:
                 delete_date_range = st.date_input("Date Range", value=[], key="delete_incident_date")
 
+            # Secret key input for deletion
+            secret_key = st.text_input("Enter Secret Key for Deletion", type="password", key="incident_delete_key")
+
             if st.button("🗑️ Delete Incident Reports", type="secondary"):
-                st.session_state['confirm_delete_incidents'] = True
+                if secret_key != "Hebtron":
+                    st.error("❌ Incorrect secret key. Deletion not authorized.")
+                else:
+                    st.session_state['confirm_delete_incidents'] = True
 
             if st.session_state.get('confirm_delete_incidents', False):
                 # Build query to show what will be deleted
                 preview_query = "SELECT COUNT(*) as count FROM incident_reports WHERE 1=1"
                 params = {}
-                
+
                 if delete_contractor != "All Contractors":
                     contractor_id = contractors_df[contractors_df['name'] == delete_contractor]['id'].iloc[0]
                     preview_query += " AND contractor_id = :contractor_id"
                     params['contractor_id'] = contractor_id
-                
+
                 if len(delete_date_range) == 2:
                     preview_query += " AND incident_date BETWEEN :start_date AND :end_date"
                     params['start_date'] = delete_date_range[0]
                     params['end_date'] = delete_date_range[1]
 
                 count = pd.read_sql_query(text(preview_query), engine, params=params).iloc[0]['count']
-                
+
                 st.warning(f"⚠️ This will delete **{count}** incident reports and their associated images. Are you sure?")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -671,25 +709,31 @@ def data_management_section():
             with col2:
                 delete_idle_date_range = st.date_input("Date Range", value=[], key="delete_idle_date")
 
+            # Secret key input for idle reports deletion
+            idle_secret_key = st.text_input("Enter Secret Key for Deletion", type="password", key="idle_delete_key")
+
             if st.button("🗑️ Delete Idle Reports", type="secondary"):
-                st.session_state['confirm_delete_idle'] = True
+                if idle_secret_key != "Hebtron":
+                    st.error("❌ Incorrect secret key. Deletion not authorized.")
+                else:
+                    st.session_state['confirm_delete_idle'] = True
 
             if st.session_state.get('confirm_delete_idle', False):
                 preview_query = "SELECT COUNT(*) as count FROM idle_reports WHERE 1=1"
                 params = {}
-                
+
                 if delete_idle_contractor != "All Contractors":
                     contractor_id = contractors_df[contractors_df['name'] == delete_idle_contractor]['id'].iloc[0]
                     preview_query += " AND contractor_id = :contractor_id"
                     params['contractor_id'] = contractor_id
-                
+
                 if len(delete_idle_date_range) == 2:
                     preview_query += " AND DATE(uploaded_at) BETWEEN :start_date AND :end_date"
                     params['start_date'] = delete_idle_date_range[0]
                     params['end_date'] = delete_idle_date_range[1]
 
                 count = pd.read_sql_query(text(preview_query), engine, params=params).iloc[0]['count']
-                
+
                 st.warning(f"⚠️ This will delete **{count}** idle reports. Are you sure?")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -706,20 +750,26 @@ def data_management_section():
         with st.expander("📍 Delete Patrol Logs"):
             delete_patrol_date_range = st.date_input("Date Range", value=[], key="delete_patrol_date")
 
+            # Secret key input for patrol logs deletion
+            patrol_secret_key = st.text_input("Enter Secret Key for Deletion", type="password", key="patrol_delete_key")
+
             if st.button("🗑️ Delete Patrol Logs", type="secondary"):
-                st.session_state['confirm_delete_patrol'] = True
+                if patrol_secret_key != "Hebtron":
+                    st.error("❌ Incorrect secret key. Deletion not authorized.")
+                else:
+                    st.session_state['confirm_delete_patrol'] = True
 
             if st.session_state.get('confirm_delete_patrol', False):
                 preview_query = "SELECT COUNT(*) as count FROM patrol_logs WHERE 1=1"
                 params = {}
-                
+
                 if len(delete_patrol_date_range) == 2:
                     preview_query += " AND DATE(timestamp) BETWEEN :start_date AND :end_date"
                     params['start_date'] = delete_patrol_date_range[0]
                     params['end_date'] = delete_patrol_date_range[1]
 
                 count = pd.read_sql_query(text(preview_query), engine, params=params).iloc[0]['count']
-                
+
                 st.warning(f"⚠️ This will delete **{count}** patrol logs. Are you sure?")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -740,30 +790,39 @@ def data_management_section():
             with col2:
                 delete_breaks_date_range = st.date_input("Date Range", value=[], key="delete_breaks_date")
 
+            # Secret key inputs for breaks and pickups deletion
+            breaks_secret_key = st.text_input("Enter Secret Key for Deletion", type="password", key="breaks_delete_key")
+
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("🗑️ Delete Breaks", type="secondary"):
-                    st.session_state['confirm_delete_breaks'] = True
+                    if breaks_secret_key != "Hebtron":
+                        st.error("❌ Incorrect secret key. Deletion not authorized.")
+                    else:
+                        st.session_state['confirm_delete_breaks'] = True
             with col2:
                 if st.button("🗑️ Delete Pickups", type="secondary"):
-                    st.session_state['confirm_delete_pickups'] = True
+                    if breaks_secret_key != "Hebtron":
+                        st.error("❌ Incorrect secret key. Deletion not authorized.")
+                    else:
+                        st.session_state['confirm_delete_pickups'] = True
 
             if st.session_state.get('confirm_delete_breaks', False):
                 preview_query = "SELECT COUNT(*) as count FROM breaks WHERE 1=1"
                 params = {}
-                
+
                 if delete_breaks_contractor != "All Contractors":
                     contractor_id = contractors_df[contractors_df['name'] == delete_breaks_contractor]['id'].iloc[0]
                     preview_query += " AND contractor_id = :contractor_id"
                     params['contractor_id'] = contractor_id
-                
+
                 if len(delete_breaks_date_range) == 2:
                     preview_query += " AND break_date BETWEEN :start_date AND :end_date"
                     params['start_date'] = delete_breaks_date_range[0]
                     params['end_date'] = delete_breaks_date_range[1]
 
                 count = pd.read_sql_query(text(preview_query), engine, params=params).iloc[0]['count']
-                
+
                 st.warning(f"⚠️ This will delete **{count}** break records. Are you sure?")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -779,19 +838,19 @@ def data_management_section():
             if st.session_state.get('confirm_delete_pickups', False):
                 preview_query = "SELECT COUNT(*) as count FROM pickups WHERE 1=1"
                 params = {}
-                
+
                 if delete_breaks_contractor != "All Contractors":
                     contractor_id = contractors_df[contractors_df['name'] == delete_breaks_contractor]['id'].iloc[0]
                     preview_query += " AND contractor_id = :contractor_id"
                     params['contractor_id'] = contractor_id
-                
+
                 if len(delete_breaks_date_range) == 2:
                     preview_query += " AND pickup_date BETWEEN :start_date AND :end_date"
                     params['start_date'] = delete_breaks_date_range[0]
                     params['end_date'] = delete_breaks_date_range[1]
 
                 count = pd.read_sql_query(text(preview_query), engine, params=params).iloc[0]['count']
-                
+
                 st.warning(f"⚠️ This will delete **{count}** pickup records. Are you sure?")
                 col1, col2 = st.columns(2)
                 with col1:
