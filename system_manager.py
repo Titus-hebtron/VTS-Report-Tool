@@ -627,27 +627,61 @@ def data_management_section():
 
         # Get database file size (SQLite only)
         db_size_mb = 0
+        db_path = None
         if USE_SQLITE:
             import os
             db_path = 'vts_database.db'
             if os.path.exists(db_path):
                 db_size_mb = os.path.getsize(db_path) / (1024 * 1024)
+        else:
+            # For PostgreSQL, we can't easily get the database size from client side
+            # This would require a more complex query to get database size
+            st.info("📊 PostgreSQL database size monitoring requires server-side access.")
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Database Size", f"{db_size_mb:.2f} MB")
+            if USE_SQLITE and db_path:
+                st.metric("Database Size", f"{db_size_mb:.2f} MB")
+            else:
+                st.metric("Database Size", "N/A (PostgreSQL)")
         with col2:
-            # Estimate remaining space (rough estimate)
-            estimated_remaining = max(0, 100 - db_size_mb)  # Assuming 100MB limit for demo
-            st.metric("Est. Remaining Space", f"{estimated_remaining:.1f} MB")
+            if USE_SQLITE:
+                # Get disk free space
+                try:
+                    import shutil
+                    disk_usage = shutil.disk_usage('.')
+                    free_space_mb = disk_usage.free / (1024 * 1024)
+                    st.metric("Disk Free Space", f"{free_space_mb:.0f} MB")
+                except:
+                    st.metric("Disk Free Space", "Unknown")
+            else:
+                st.metric("Disk Free Space", "N/A")
         with col3:
-            usage_percent = min(100, (db_size_mb / 100) * 100) if db_size_mb > 0 else 0
-            st.metric("Usage", f"{usage_percent:.1f}%")
+            if USE_SQLITE and db_size_mb > 0:
+                # Show relative size indicator
+                if db_size_mb < 10:
+                    st.metric("Size Category", "Small")
+                elif db_size_mb < 50:
+                    st.metric("Size Category", "Medium")
+                elif db_size_mb < 100:
+                    st.metric("Size Category", "Large")
+                else:
+                    st.metric("Size Category", "Very Large")
+            else:
+                st.metric("Size Category", "N/A")
 
-        if db_size_mb > 80:
-            st.error("⚠️ Database size is getting large. Consider archiving old data or creating backups.")
-        elif db_size_mb > 50:
-            st.warning("⚠️ Database size is moderate. Monitor growth and plan for archiving.")
+        # Storage alerts
+        if USE_SQLITE:
+            if db_size_mb > 200:  # Very large threshold
+                st.error("🚨 Database is very large (>200MB). Immediate action recommended: archive old data or split database.")
+            elif db_size_mb > 100:  # Large threshold
+                st.error("⚠️ Database size is large (>100MB). Consider archiving old data.")
+            elif db_size_mb > 50:  # Moderate threshold
+                st.warning("⚠️ Database size is moderate (>50MB). Monitor growth and plan for archiving.")
+            elif db_size_mb > 0:
+                st.success("✅ Database size is within normal range.")
+            else:
+                st.info("ℹ️ Database file not found or empty.")
 
         st.markdown("---")
 
