@@ -884,7 +884,7 @@ def incident_report_page(patrol_vehicle_options=None):
                                     st.error(f"❌ Could not process as text: {text_e}")
                     else:
                         st.info("No images uploaded for this incident.")
-                else:
-                    st.info("No images uploaded for this incident.")
-            else:
-                st.info("No incident reports found.")
+        else:
+            st.info("No images uploaded for this incident.")
+    else:
+        st.info("No incident reports found.")
