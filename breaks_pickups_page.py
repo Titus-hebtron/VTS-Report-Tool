@@ -174,8 +174,10 @@ def breaks_pickups_page():
                     result = conn.execute(text("SELECT last_insert_rowid()"))
                     pickup_id = result.fetchone()[0]
                 else:
-                    # For PostgreSQL, use RETURNING clause
-                    result = conn.execute(text("SELECT currval('pickups_id_seq')"))
+                    # For PostgreSQL, use RETURNING clause in the INSERT statement
+                    # We need to modify the INSERT to use RETURNING
+                    # For now, let's use a different approach - get the max id
+                    result = conn.execute(text("SELECT MAX(id) FROM pickups"))
                     pickup_id = result.fetchone()[0]
 
             if pickup_photo:
