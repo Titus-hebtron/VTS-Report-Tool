@@ -636,9 +636,9 @@ elif role == "admin":
 elif role == "patrol":
     allowed_pages = ["Incident Report", "Breaks & Pickups", "GPS Tracking", "Real-Time GPS"]
 elif role == "re_admin":
-    # RE admin has access to all pages including backup management
+    # RE admin has access to all pages including backup management and system manager
     allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
-                     "Report Search", "Breaks & Pickups", "Search Page", "Accident Analysis", "GPS Tracking", "Real-Time GPS", "Backup Management"]
+                     "Report Search", "Breaks & Pickups", "Search Page", "Accident Analysis", "GPS Tracking", "Real-Time GPS", "Backup Management", "System Manager"]
 else:
     allowed_pages = []
 
@@ -769,6 +769,16 @@ elif page == "Backup Management":
     except Exception as e:
         st.error(f"❌ Error loading Backup Management: {e}")
         st.info("💡 This feature requires additional setup. Please contact the administrator.")
+elif page == "System Manager":
+    try:
+        from system_manager import system_manager_page
+        system_manager_page()
+    except Exception as e:
+        st.error(f"❌ Error loading System Manager: {e}")
+        st.info("💡 This feature requires additional setup. Please contact the administrator.")
+        import traceback
+        with st.expander("View Error Details"):
+            st.code(traceback.format_exc())
 
 # ---------------- FOOTER ----------------
 st.markdown("""
