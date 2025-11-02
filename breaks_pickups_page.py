@@ -204,30 +204,37 @@ def breaks_pickups_page():
         from db_utils import get_contractor_id
         contractor_id = get_contractor_id(contractor)
 
-        pickup_query = """
+        # Use named parameters for better compatibility
+        pickup_query = text("""
             SELECT *
             FROM pickups
-            WHERE vehicle = ?
-            AND contractor_id = ?
-            AND pickup_date BETWEEN ? AND ?
+            WHERE vehicle = :vehicle
+            AND contractor_id = :contractor_id
+            AND pickup_date BETWEEN :start_date AND :end_date
             ORDER BY pickup_date DESC
-        """
+        """)
         with engine.connect() as conn:
-            pickups_df = pd.read_sql_query(pickup_query, conn, params=(
-                vehicle_filter, contractor_id, week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d')
-            ))
+            pickups_df = pd.read_sql_query(pickup_query, conn, params={
+                'vehicle': vehicle_filter,
+                'contractor_id': contractor_id,
+                'start_date': week_start.strftime('%Y-%m-%d'),
+                'end_date': week_end.strftime('%Y-%m-%d')
+            })
 
-            break_query = """
+            break_query = text("""
                 SELECT *
                 FROM breaks
-                WHERE vehicle = ?
-                AND contractor_id = ?
-                AND break_date BETWEEN ? AND ?
+                WHERE vehicle = :vehicle
+                AND contractor_id = :contractor_id
+                AND break_date BETWEEN :start_date AND :end_date
                 ORDER BY break_date DESC
-            """
-            breaks_df = pd.read_sql_query(break_query, conn, params=(
-                vehicle_filter, contractor_id, week_start.strftime('%Y-%m-%d'), week_end.strftime('%Y-%m-%d')
-            ))
+            """)
+            breaks_df = pd.read_sql_query(break_query, conn, params={
+                'vehicle': vehicle_filter,
+                'contractor_id': contractor_id,
+                'start_date': week_start.strftime('%Y-%m-%d'),
+                'end_date': week_end.strftime('%Y-%m-%d')
+            })
 
         if not pickups_df.empty or not breaks_df.empty:
             if not pickups_df.empty:
