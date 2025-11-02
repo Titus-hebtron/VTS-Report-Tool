@@ -25,7 +25,7 @@ def system_manager_page():
     st.info("🔐 **Resident Engineer Access Only** - Manage users, contractors, data, and backups")
 
     # Create tabs for different management operations
-    tab1, tab2, tab3, tab4 = st.tabs(["👥 User Management", "🏢 Contractor Management", "🗑️ Data Management", "💾 Backup & Restore"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["👥 User Management", "🏢 Contractor Management", "🚗 Patrol Car Management", "🗑️ Data Management", "💾 Backup & Restore"])
 
     with tab1:
         user_management_section()
@@ -34,9 +34,12 @@ def system_manager_page():
         contractor_management_section()
 
     with tab3:
-        data_management_section()
+        patrol_car_management_section()
 
     with tab4:
+        data_management_section()
+
+    with tab5:
         backup_restore_section()
 
 
@@ -422,14 +425,155 @@ def delete_contractor(contractor_id, name):
     """Delete a contractor from the database"""
     try:
         engine = get_sqlalchemy_engine()
-        
+
         with engine.begin() as conn:
             conn.execute(text("DELETE FROM contractors WHERE id = :contractor_id"), {"contractor_id": contractor_id})
-        
+
         st.success(f"✅ Contractor '{name}' deleted successfully!")
-        
+
     except Exception as e:
         st.error(f"Error deleting contractor: {e}")
+        raise
+
+
+def patrol_car_management_section():
+    """Patrol car management section"""
+    st.subheader("🚗 Patrol Car Management")
+
+    try:
+        engine = get_sqlalchemy_engine()
+
+        # Get vehicles with contractor info
+        query = """
+            SELECT v.id, v.plate_number, v.contractor, v.created_at,
+                   COUNT(DISTINCT ir.id) as incident_count
+            FROM vehicles v
+            LEFT JOIN incident_reports ir ON v.plate_number = ir.patrol_car
+            GROUP BY v.id, v.plate_number, v.contractor, v.created_at
+            ORDER BY v.contractor, v.plate_number
+        """
+        vehicles_df = pd.read_sql_query(text(query), engine)
+
+        # Display statistics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Patrol Cars", len(vehicles_df))
+        with col2:
+            st.metric("Active Contractors", vehicles_df['contractor'].nunique())
+        with col3:
+            st.metric("Total Incidents", vehicles_df['incident_count'].sum())
+
+        st.markdown("---")
+
+        # Add new patrol car section
+        with st.expander("➕ Add New Patrol Car", expanded=False):
+            with st.form("add_vehicle_form"):
+                new_plate_number = st.text_input("Plate Number*", key="new_plate")
+                contractors_df = pd.read_sql_query(text("SELECT name FROM contractors ORDER BY name"), engine)
+                contractor_options = list(contractors_df['name'])
+                new_contractor = st.selectbox("Contractor*", contractor_options, key="new_vehicle_contractor")
+
+                if st.form_submit_button("➕ Add Patrol Car"):
+                    if not new_plate_number:
+                        st.error("Plate number is required!")
+                    else:
+                        add_new_vehicle(new_plate_number, new_contractor)
+                        st.rerun()
+
+        st.markdown("---")
+
+        # Search and filter
+        col1, col2 = st.columns(2)
+        with col1:
+            search_term = st.text_input("🔍 Search by plate number", key="vehicle_search")
+        with col2:
+            contractor_filter = st.selectbox("Filter by contractor", ["All Contractors"] + list(vehicles_df['contractor'].unique()), key="vehicle_contractor_filter")
+
+        # Apply filters
+        filtered_df = vehicles_df.copy()
+        if search_term:
+            filtered_df = filtered_df[filtered_df['plate_number'].str.contains(search_term, case=False, na=False)]
+        if contractor_filter != "All Contractors":
+            filtered_df = filtered_df[filtered_df['contractor'] == contractor_filter]
+
+        # Display vehicles
+        st.subheader(f"🚗 Patrol Cars ({len(filtered_df)})")
+
+        if len(filtered_df) > 0:
+            for idx, vehicle in filtered_df.iterrows():
+                with st.container():
+                    col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
+
+                    with col1:
+                        st.write(f"**{vehicle['plate_number']}**")
+                    with col2:
+                        st.write(f"🏢 {vehicle['contractor']}")
+                    with col3:
+                        st.write(f"📄 {vehicle['incident_count']} incidents")
+                    with col4:
+                        created_date = pd.to_datetime(vehicle['created_at']).strftime('%Y-%m-%d') if vehicle['created_at'] else 'N/A'
+                        st.write(created_date)
+                    with col5:
+                        if st.button("🗑️", key=f"delete_vehicle_{vehicle['id']}", help="Delete patrol car"):
+                            st.session_state[f"confirm_delete_vehicle_{vehicle['id']}"] = True
+
+                # Delete confirmation
+                if st.session_state.get(f"confirm_delete_vehicle_{vehicle['id']}", False):
+                    st.warning(f"⚠️ Are you sure you want to delete patrol car **{vehicle['plate_number']}**?")
+                    st.info("Note: This will not delete associated incident reports, but they will no longer be linked to this vehicle.")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("✅ Yes, Delete", key=f"confirm_yes_vehicle_{vehicle['id']}"):
+                            delete_vehicle(vehicle['id'], vehicle['plate_number'])
+                            st.session_state[f"confirm_delete_vehicle_{vehicle['id']}"] = False
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Cancel", key=f"confirm_no_vehicle_{vehicle['id']}"):
+                            st.session_state[f"confirm_delete_vehicle_{vehicle['id']}"] = False
+                            st.rerun()
+
+                st.markdown("---")
+        else:
+            st.info("No patrol cars found matching the filters.")
+
+    except Exception as e:
+        st.error(f"Error loading patrol cars: {e}")
+        with st.expander("View Error Details"):
+            st.code(traceback.format_exc())
+
+
+def add_new_vehicle(plate_number, contractor):
+    """Add a new vehicle to the database"""
+    try:
+        engine = get_sqlalchemy_engine()
+
+        with engine.begin() as conn:
+            if USE_SQLITE:
+                conn.execute(text("INSERT INTO vehicles (plate_number, contractor) VALUES (:plate_number, :contractor)"),
+                           {"plate_number": plate_number, "contractor": contractor})
+            else:
+                conn.execute(text("INSERT INTO vehicles (plate_number, contractor) VALUES (:plate_number, :contractor) ON CONFLICT DO NOTHING"),
+                           {"plate_number": plate_number, "contractor": contractor})
+
+        st.success(f"✅ Patrol car '{plate_number}' added successfully!")
+
+    except Exception as e:
+        st.error(f"Error adding patrol car: {e}")
+        raise
+
+
+def delete_vehicle(vehicle_id, plate_number):
+    """Delete a vehicle from the database"""
+    try:
+        engine = get_sqlalchemy_engine()
+
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM vehicles WHERE id = :vehicle_id"), {"vehicle_id": vehicle_id})
+
+        st.success(f"✅ Patrol car '{plate_number}' deleted successfully!")
+
+    except Exception as e:
+        st.error(f"Error deleting patrol car: {e}")
         raise
 
 
