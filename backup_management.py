@@ -229,7 +229,8 @@ def backup_management_page():
             from google.oauth2.credentials import Credentials
             st.success("✅ Google API client is installed")
         except ImportError:
-            st.error("❌ Google API client not installed. Run: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
+            st.warning("⚠️ Google API client not installed. Google Drive features will be disabled.")
+            st.info("To enable Google Drive backups, run: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
 
         # Check backup directory
         if os.path.exists(backup_dir):
@@ -341,12 +342,16 @@ def backup_management_page():
                         from email.mime.text import MIMEText
                         from email.mime.multipart import MIMEMultipart
 
-                        # Google Drive imports
-                        from google.oauth2.credentials import Credentials
-                        from googleapiclient.discovery import build
-                        from googleapiclient.http import MediaFileUpload
-                        from google.auth.transport.requests import Request
-                        import pickle
+                        # Google Drive imports - check if available
+                        try:
+                            from google.oauth2.credentials import Credentials
+                            from googleapiclient.discovery import build
+                            from googleapiclient.http import MediaFileUpload
+                            from google.auth.transport.requests import Request
+                            import pickle
+                        except ImportError:
+                            st.error("❌ Google API client not installed. Cannot perform Google Drive backup.")
+                            raise ImportError("Google API client not available")
 
                         # Configuration
                         DB_PATH = 'vts_database.db'
