@@ -171,9 +171,8 @@ def gps_tracking_page():
                         st.markdown("- Speed tracking (km/h)")
                         st.markdown("- Date and time stamps")
                         st.markdown("- Idle time detection and recording")
-                        # Force commit and wait briefly for transaction to complete
-                        import time
-                        time.sleep(0.2)  # Brief pause to ensure DB commit
+                        # GPS tracking remains active until manually deactivated
+                        # No automatic timeout - stays active for 24+ hours
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
                         st.error(f"Failed to activate GPS tracking: {e}")
@@ -198,9 +197,8 @@ def gps_tracking_page():
                             })
                         st.warning(f"GPS tracking deactivated for {selected_vehicle}")
                         st.info("The vehicle GPS tracker has been stopped.")
-                        # Force commit and wait briefly for transaction to complete
-                        import time
-                        time.sleep(0.2)  # Brief pause to ensure DB commit
+                        # GPS tracking remains active until manually deactivated
+                        # No automatic timeout - stays active for 24+ hours
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
                         st.error(f"Failed to deactivate GPS tracking: {e}")
