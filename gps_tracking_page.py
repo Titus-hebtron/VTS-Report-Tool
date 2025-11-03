@@ -87,6 +87,15 @@ def gps_tracking_page():
             st.info("Please select a vehicle to view its GPS tracking data.")
         return
 
+    # Get vehicle ID first (needed for patrol activation)
+    vehicle_row = vehicles_df[vehicles_df['display_name'] == selected_vehicle]
+    if vehicle_row.empty:
+        st.error("Vehicle not found.")
+        return
+
+    vehicle_id = vehicle_row['id'].iloc[0]
+    actual_plate_number = vehicle_row['plate_number'].iloc[0]
+
     # For patrol officers, add activation button
     if is_patrol:
         st.subheader("🚔 Patrol Vehicle Activation")
@@ -163,15 +172,6 @@ def gps_tracking_page():
                     st.rerun()  # Refresh to show updated status
                 except Exception as e:
                     st.error(f"Failed to deactivate GPS tracking: {e}")
-
-    # Get vehicle ID
-    vehicle_row = vehicles_df[vehicles_df['display_name'] == selected_vehicle]
-    if vehicle_row.empty:
-        st.error("Vehicle not found.")
-        return
-
-    vehicle_id = vehicle_row['id'].iloc[0]
-    actual_plate_number = vehicle_row['plate_number'].iloc[0]
 
     # Date range selection
     col1, col2 = st.columns(2)
