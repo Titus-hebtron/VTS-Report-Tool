@@ -171,6 +171,8 @@ def gps_tracking_page():
                         st.markdown("- Speed tracking (km/h)")
                         st.markdown("- Date and time stamps")
                         st.markdown("- Idle time detection and recording")
+                        # Force a page refresh by setting a temporary session state
+                        st.session_state['gps_refresh'] = datetime.now().isoformat()
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
                         st.error(f"Failed to activate GPS tracking: {e}")
@@ -195,6 +197,8 @@ def gps_tracking_page():
                             })
                         st.warning(f"GPS tracking deactivated for {selected_vehicle}")
                         st.info("The vehicle GPS tracker has been stopped.")
+                        # Force a page refresh by setting a temporary session state
+                        st.session_state['gps_refresh'] = datetime.now().isoformat()
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
                         st.error(f"Failed to deactivate GPS tracking: {e}")
