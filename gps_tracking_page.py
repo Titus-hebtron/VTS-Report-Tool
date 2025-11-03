@@ -152,8 +152,7 @@ def gps_tracking_page():
                 activity TEXT,
                 status TEXT DEFAULT 'offline',
                 speed REAL DEFAULT 0.0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """
         with engine.begin() as conn:
@@ -182,8 +181,7 @@ def gps_tracking_page():
                     activity TEXT,
                     status TEXT DEFAULT 'offline',
                     speed REAL DEFAULT 0.0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """
             with engine.begin() as conn:
