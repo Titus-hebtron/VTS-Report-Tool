@@ -54,8 +54,8 @@ class GpsService {
 
     // Start background location tracking
     await BackgroundLocation.setAndroidNotification(
-      title: 'GPS Tracking Active',
-      message: 'Tracking vehicle location for patrol logs',
+      title: 'Patrol GPS Tracking Active',
+      message: 'Recording speed, location, time, and idle data for patrol logs',
       icon: '@mipmap/ic_launcher',
     );
 

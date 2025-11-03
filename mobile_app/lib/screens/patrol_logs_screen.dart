@@ -19,6 +19,7 @@ class PatrolLogsScreen extends StatefulWidget {
 class _PatrolLogsScreenState extends State<PatrolLogsScreen> {
   List<dynamic> _logs = [];
   bool _isLoading = true;
+  bool _isTracking = false;
 
   @override
   void initState() {
@@ -43,13 +44,44 @@ class _PatrolLogsScreenState extends State<PatrolLogsScreen> {
     }
   }
 
+  Future<void> _toggleTracking() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final gpsService = GpsService();
+
+    if (_isTracking) {
+      // Stop tracking
+      await gpsService.stopTracking();
+      setState(() => _isTracking = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('GPS tracking stopped')),
+      );
+    } else {
+      // Start tracking
+      try {
+        await gpsService.startTracking(
+          auth.token!,
+          widget.vehicle['id'],
+          auth.contractor,
+        );
+        setState(() => _isTracking = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('GPS tracking started - monitoring location, speed, and idle time')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start tracking: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text('Patrol Logs - ${widget.vehicle['plate_number']}'),
+          title: Text('Patrol Vehicle - ${widget.vehicle['plate_number']}'),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Logs'),
@@ -57,20 +89,59 @@ class _PatrolLogsScreenState extends State<PatrolLogsScreen> {
             ],
           ),
         ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _toggleTracking,
+          icon: Icon(_isTracking ? Icons.stop : Icons.play_arrow),
+          label: Text(_isTracking ? 'Stop Tracking' : 'Start Tracking'),
+          backgroundColor: _isTracking ? Colors.red : Colors.green,
+        ),
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : TabBarView(
                 children: [
                   // Logs Tab
-                  ListView.builder(
-                    itemCount: _logs.length,
-                    itemBuilder: (context, index) {
-                      final log = _logs[index];
-                      return ListTile(
-                        title: Text(log['activity'] ?? 'No activity'),
-                        subtitle: Text(log['timestamp']),
-                      );
-                    },
+                  Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        color: _isTracking ? Colors.green.shade50 : Colors.grey.shade50,
+                        child: Row(
+                          children: [
+                            Icon(
+                              _isTracking ? Icons.gps_fixed : Icons.gps_off,
+                              color: _isTracking ? Colors.green : Colors.grey,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _isTracking
+                                  ? 'GPS Tracking Active - Recording location, speed, and idle time'
+                                  : 'GPS Tracking Inactive',
+                              style: TextStyle(
+                                color: _isTracking ? Colors.green.shade800 : Colors.grey.shade800,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: _logs.isEmpty
+                            ? const Center(child: Text('No patrol logs yet. Start tracking to see data.'))
+                            : ListView.builder(
+                                itemCount: _logs.length,
+                                itemBuilder: (context, index) {
+                                  final log = _logs[index];
+                                  return ListTile(
+                                    title: Text(log['activity'] ?? 'No activity'),
+                                    subtitle: Text(log['timestamp'] ?? ''),
+                                    trailing: log['speed'] != null
+                                        ? Text('${log['speed']} km/h')
+                                        : null,
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
                   // Map Tab
                   FlutterMap(

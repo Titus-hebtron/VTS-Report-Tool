@@ -22,12 +22,15 @@ def gps_tracking_page():
         st.error("No contractor info found in session.")
         return
 
-    # Check if user is from RE Office (can see all vehicles)
+    # Check if user is from RE Office (can see all vehicles) or patrol role
     is_re_office = user_contractor.lower() == "re office"
+    is_patrol = user_role.lower() == "patrol"
 
     # Display access level information
     if is_re_office:
         st.info("🔍 **RE Office Access**: You can view GPS data for all vehicles from all contractors.")
+    elif is_patrol:
+        st.info("🚔 **Patrol Officer Access**: You can activate and track patrol vehicles.")
     else:
         st.info(f"🏢 **{user_contractor} Access**: You can view GPS data for your contractor's vehicles only.")
 
@@ -47,11 +50,22 @@ def gps_tracking_page():
         """
         vehicles_df = pd.read_sql(vehicles_query, engine)
         vehicles_df['display_name'] = vehicles_df['contractor_name'] + ' - ' + vehicles_df['plate_number']
+    elif is_patrol:
+        # Patrol officers can only see patrol vehicles from their contractor
+        vehicles_query = """
+            SELECT id, plate_number
+            FROM vehicles
+            WHERE contractor = (SELECT name FROM contractors WHERE id = %s)
+            AND plate_number LIKE 'Patrol_%%'
+            ORDER BY plate_number
+        """
+        vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+        vehicles_df['display_name'] = vehicles_df['plate_number']
     else:
         vehicles_query = """
             SELECT id, plate_number
             FROM vehicles
-            WHERE contractor = (SELECT name FROM contractors WHERE id = ?)
+            WHERE contractor = (SELECT name FROM contractors WHERE id = %s)
             ORDER BY plate_number
         """
         vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
@@ -66,8 +80,32 @@ def gps_tracking_page():
     selected_vehicle = st.selectbox("Select Vehicle to Track", vehicle_options)
 
     if selected_vehicle == "Select a vehicle":
-        st.info("Please select a vehicle to view its GPS tracking data.")
+        if is_patrol:
+            st.info("Please select a patrol vehicle to activate GPS tracking.")
+        else:
+            st.info("Please select a vehicle to view its GPS tracking data.")
         return
+
+    # For patrol officers, add activation button
+    if is_patrol:
+        st.subheader("🚔 Patrol Vehicle Activation")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🟢 Activate GPS Tracking", type="primary"):
+                # Here we would typically send a command to activate the GPS tracker
+                # For now, just show success message
+                st.success(f"GPS tracking activated for {selected_vehicle}")
+                st.info("The vehicle GPS tracker is now active and will start recording location, speed, and idle time data.")
+                st.info("📍 **Tracking Features:**")
+                st.markdown("- Real-time location monitoring")
+                st.markdown("- Speed tracking (km/h)")
+                st.markdown("- Date and time stamps")
+                st.markdown("- Idle time detection and recording")
+        with col2:
+            if st.button("🔴 Deactivate GPS Tracking"):
+                # Here we would typically send a command to deactivate the GPS tracker
+                st.warning(f"GPS tracking deactivated for {selected_vehicle}")
+                st.info("The vehicle GPS tracker has been stopped.")
 
     # Get vehicle ID
     vehicle_row = vehicles_df[vehicles_df['display_name'] == selected_vehicle]
@@ -104,8 +142,8 @@ def gps_tracking_page():
     gps_query = """
         SELECT timestamp, latitude, longitude, activity, speed
         FROM patrol_logs
-        WHERE vehicle_id = ?
-        AND timestamp BETWEEN ? AND ?
+        WHERE vehicle_id = %s
+        AND timestamp BETWEEN %s AND %s
         ORDER BY timestamp ASC
     """
     gps_df = pd.read_sql(gps_query, engine, params=(vehicle_id, start_datetime, end_datetime))

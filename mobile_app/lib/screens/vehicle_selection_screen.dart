@@ -16,10 +16,12 @@ class VehicleSelectionScreen extends StatefulWidget {
 class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   List<dynamic> _vehicles = [];
   bool _isLoading = true;
+  String? _userRole;
 
   @override
   void initState() {
     super.initState();
+    _userRole = Provider.of<AuthProvider>(context, listen: false).role;
     _fetchVehicles();
   }
 
@@ -33,6 +35,11 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
     if (response.statusCode == 200) {
       setState(() {
         _vehicles = json.decode(response.body);
+        // Filter vehicles based on role - patrol officers only see patrol vehicles
+        if (_userRole == 'patrol') {
+          _vehicles = _vehicles.where((vehicle) =>
+            vehicle['plate_number'].toString().startsWith('Patrol_')).toList();
+        }
         _isLoading = false;
       });
     } else {
@@ -44,26 +51,30 @@ class _VehicleSelectionScreenState extends State<VehicleSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Select Vehicle')),
+      appBar: AppBar(title: const Text('Select Patrol Vehicle')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: _vehicles.length,
-              itemBuilder: (context, index) {
-                final vehicle = _vehicles[index];
-                return ListTile(
-                  title: Text(vehicle['plate_number']),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PatrolLogsScreen(vehicle: vehicle),
-                      ),
+          : _vehicles.isEmpty
+              ? const Center(child: Text('No patrol vehicles available'))
+              : ListView.builder(
+                  itemCount: _vehicles.length,
+                  itemBuilder: (context, index) {
+                    final vehicle = _vehicles[index];
+                    return ListTile(
+                      title: Text(vehicle['plate_number']),
+                      subtitle: Text('Tap to activate GPS tracking'),
+                      leading: const Icon(Icons.directions_car, color: Colors.blue),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PatrolLogsScreen(vehicle: vehicle),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
+                ),
     );
   }
 }

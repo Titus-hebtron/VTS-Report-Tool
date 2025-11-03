@@ -8,6 +8,8 @@ from sqlalchemy import text
 def add_sample_vehicles():
     engine = get_sqlalchemy_engine()
 
+    from db_utils import USE_SQLITE
+    
     # Note: The patrol cars being monitored through GPRS are the five vehicles from the two contractors:
     # Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car)
     # The recovery cars serve as additional slots for backup vehicles
@@ -17,28 +19,43 @@ def add_sample_vehicles():
         ('KDS 374F', 'Wizpro'),
         ('KDK 825Y', 'Wizpro'),
         ('Replacement Car', 'Wizpro'),
-
+    
         # Paschal vehicles
         ('KDC 873G', 'Paschal'),
         ('KDD 500X', 'Paschal'),
         ('Replacement Car', 'Paschal'),
-
+    
         # Avators vehicles
         ('KAV 444A', 'Avators'),
         ('KAV 555A', 'Avators'),
         ('KAV 666A', 'Avators'),
         ('Replacement Car', 'Avators'),
+    
+        # Patrol vehicles for GPS tracking
+        ('Patrol_1', 'Wizpro'),
+        ('Patrol_2', 'Wizpro'),
+        ('Patrol_3', 'Wizpro'),
     ]
 
     with engine.begin() as conn:
         for plate_number, contractor in vehicles:
-            conn.execute(text("""
-                INSERT OR IGNORE INTO vehicles (plate_number, contractor)
-                VALUES (:plate_number, :contractor)
-            """), {
-                "plate_number": plate_number,
-                "contractor": contractor
-            })
+            if USE_SQLITE:
+                conn.execute(text("""
+                    INSERT OR IGNORE INTO vehicles (plate_number, contractor)
+                    VALUES (:plate_number, :contractor)
+                """), {
+                    "plate_number": plate_number,
+                    "contractor": contractor
+                })
+            else:
+                conn.execute(text("""
+                    INSERT INTO vehicles (plate_number, contractor)
+                    VALUES (:plate_number, :contractor)
+                    ON CONFLICT DO NOTHING
+                """), {
+                    "plate_number": plate_number,
+                    "contractor": contractor
+                })
 
     print("Sample vehicles added successfully!")
 
