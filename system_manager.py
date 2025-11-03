@@ -743,8 +743,8 @@ def data_management_section():
 
                 if delete_contractor != "All Contractors":
                     contractor_id = contractors_df[contractors_df['name'] == delete_contractor]['id'].iloc[0]
-                    preview_query += " AND contractor_id = :contractor_id"
-                    params['contractor_id'] = contractor_id
+                    preview_query += " AND contractor_id = %(contractor_id)s"
+                    params['contractor_id'] = int(contractor_id)
 
                 if len(delete_date_range) == 2:
                     preview_query += " AND incident_date BETWEEN :start_date AND :end_date"
