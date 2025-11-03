@@ -574,7 +574,7 @@ if selected_vehicle:
             # Check if patrol_logs table exists first
             try:
                 patrol_logs = pd.read_sql("""
-                    SELECT timestamp, latitude, longitude, activity
+                    SELECT timestamp, latitude, longitude, activity, speed
                     FROM patrol_logs
                     WHERE vehicle_id = %s
                     ORDER BY timestamp DESC
@@ -607,12 +607,13 @@ if selected_vehicle:
                 if row["latitude"] and row["longitude"]:
                     popup_text = f"""
                     <b>Time:</b> {row['timestamp']}<br>
-                    <b>Activity:</b> {row['activity']}
+                    <b>Activity:</b> {row['activity']}<br>
+                    <b>Speed:</b> {row.get('speed', 'N/A')} km/h
                     """
                     folium.Marker(
                         [row["latitude"], row["longitude"]],
                         popup=popup_text,
-                        tooltip=row["activity"] if row["activity"] else "Log Point",
+                        tooltip=f"{row['activity']} - {row.get('speed', 'N/A')} km/h" if row["activity"] else "Log Point",
                         icon=folium.Icon(color="blue", icon="car", prefix="fa")
                     ).add_to(patrol_map)
 
