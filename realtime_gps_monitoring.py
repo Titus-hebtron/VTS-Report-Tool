@@ -147,11 +147,10 @@ def realtime_gps_monitoring_page():
         offline_count = len(vehicles_df[vehicles_df['status'] == 'offline'])
         st.metric("Offline", offline_count)
     with col4:
-        active_tracking = len(vehicles_df[
-            (vehicles_df['status'] == 'online') &
-            (vehicles_df['activity'].isin(['moving', 'idle', 'patrol']))
-        ])
-        st.metric("Actively Tracking", active_tracking)
+        # Check for patrol vehicles that have been activated (have GPS tracking enabled)
+        patrol_vehicles = vehicles_df[vehicles_df['plate_number'].str.startswith('Patrol_', na=False)]
+        active_patrol = len(patrol_vehicles[patrol_vehicles['status'] == 'online'])
+        st.metric("Active Patrol", active_patrol)
 
     # Create OpenStreetMap with Folium
     st.subheader("🗺️ Live Vehicle Locations")
@@ -185,6 +184,11 @@ def realtime_gps_monitoring_page():
         status = vehicle['status']
         activity = vehicle.get('activity', 'Unknown')
         last_update = vehicle.get('last_update', 'Never')
+        plate_number = vehicle['plate_number']
+
+        # Special handling for patrol vehicles
+        is_patrol_vehicle = plate_number.startswith('Patrol_')
+        patrol_status = "Activated" if status == 'online' and is_patrol_vehicle else "Not Activated"
 
         # Choose marker color based on status
         if status == 'online':
@@ -195,21 +199,34 @@ def realtime_gps_monitoring_page():
             icon_type = 'stop'
 
         # Create popup content
-        popup_content = f"""
-        <div style="font-family: Arial, sans-serif; font-size: 14px; max-width: 250px;">
-            <strong>{vehicle_name}</strong><br>
-            <span style="color: {'green' if status == 'online' else 'red'}; font-weight: bold;">
-                {'🟢 Online' if status == 'online' else '🔴 Offline'}
-            </span><br>
-            <strong>Activity:</strong> {activity}<br>
-            <strong>Last Update:</strong> {str(last_update) if last_update != 'Never' else 'Never'}
-        </div>
-        """
+        if is_patrol_vehicle:
+            popup_content = f"""
+            <div style="font-family: Arial, sans-serif; font-size: 14px; max-width: 250px;">
+                <strong>🚔 {vehicle_name}</strong><br>
+                <span style="color: {'green' if status == 'online' else 'red'}; font-weight: bold;">
+                    {'🟢 GPS Active' if status == 'online' else '🔴 GPS Inactive'}
+                </span><br>
+                <strong>Patrol Status:</strong> {patrol_status}<br>
+                <strong>Activity:</strong> {activity}<br>
+                <strong>Last Update:</strong> {str(last_update) if last_update != 'Never' else 'Never'}
+            </div>
+            """
+        else:
+            popup_content = f"""
+            <div style="font-family: Arial, sans-serif; font-size: 14px; max-width: 250px;">
+                <strong>{vehicle_name}</strong><br>
+                <span style="color: {'green' if status == 'online' else 'red'}; font-weight: bold;">
+                    {'🟢 Online' if status == 'online' else '🔴 Offline'}
+                </span><br>
+                <strong>Activity:</strong> {activity}<br>
+                <strong>Last Update:</strong> {str(last_update) if last_update != 'Never' else 'Never'}
+            </div>
+            """
 
         folium.Marker(
             [vehicle['latitude'], vehicle['longitude']],
             popup=popup_content,
-            tooltip=vehicle_name,
+            tooltip=f"🚔 {vehicle_name}" if is_patrol_vehicle else vehicle_name,
             icon=folium.Icon(color=marker_color, icon=icon_type, prefix='fa')
         ).add_to(m)
 
@@ -225,12 +242,19 @@ def realtime_gps_monitoring_page():
     display_df['status_display'] = display_df['status'].apply(lambda x: "🟢 Online" if x == "online" else "🔴 Offline")
     display_df['activity'] = display_df['activity'].fillna('Unknown')
 
+    # Add patrol status column for patrol vehicles
+    display_df['patrol_status'] = display_df.apply(
+        lambda row: "🚔 GPS Active" if row['plate_number'].startswith('Patrol_') and row['status'] == 'online'
+        else ("🚔 GPS Inactive" if row['plate_number'].startswith('Patrol_') else ""),
+        axis=1
+    )
+
     if is_re_office:
-        display_cols = ['contractor_name', 'plate_number', 'status_display', 'activity', 'last_update']
-        display_names = ['Contractor', 'Vehicle', 'Status', 'Activity', 'Last Update']
+        display_cols = ['contractor_name', 'plate_number', 'status_display', 'patrol_status', 'activity', 'last_update']
+        display_names = ['Contractor', 'Vehicle', 'Status', 'Patrol GPS', 'Activity', 'Last Update']
     else:
-        display_cols = ['plate_number', 'status_display', 'activity', 'last_update']
-        display_names = ['Vehicle', 'Status', 'Activity', 'Last Update']
+        display_cols = ['plate_number', 'status_display', 'patrol_status', 'activity', 'last_update']
+        display_names = ['Vehicle', 'Status', 'Patrol GPS', 'Activity', 'Last Update']
 
     st.dataframe(
         display_df[display_cols],
