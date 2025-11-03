@@ -136,51 +136,34 @@ def gps_tracking_page():
             current_status = 'offline'
             last_update = None
 
+        # Display current status
+        if current_status == 'online':
+            st.success(f"🟢 GPS tracking is ACTIVE for {selected_vehicle}")
+            if last_update:
+                st.info(f"Last GPS update: {last_update}")
+        else:
+            st.info(f"🔴 GPS tracking is INACTIVE for {selected_vehicle}")
+
+        # Action buttons
         col1, col2 = st.columns(2)
         with col1:
-            if current_status == 'online':
-                st.success(f"🟢 GPS tracking is ACTIVE for {selected_vehicle}")
-                if last_update:
-                    st.info(f"Last GPS update: {last_update}")
-                # Show deactivate button when active
-                if st.button("🔴 Deactivate GPS Tracking", key="deactivate_active"):
-                    # Insert deactivation record
-                    try:
-                        with engine.begin() as conn:
-                            conn.execute(text("""
-                                INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
-                                VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity, :status, :speed)
-                            """), {
-                                "vehicle_id": vehicle_id,
-                                "timestamp": datetime.now(),
-                                "latitude": -1.2921,  # Nairobi default
-                                "longitude": 36.8219,
-                                "activity": "deactivated",
-                                "status": "offline",
-                                "speed": 0.0
-                            })
-                        st.warning(f"GPS tracking deactivated for {selected_vehicle}")
-                        st.info("The vehicle GPS tracker has been stopped.")
-                        st.rerun()  # Refresh to show updated status
-                    except Exception as e:
-                        st.error(f"Failed to deactivate GPS tracking: {e}")
-            else:
+            if current_status != 'online':
                 if st.button("🟢 Activate GPS Tracking", type="primary"):
                     # Insert activation record
                     try:
                         with engine.begin() as conn:
                             conn.execute(text("""
                                 INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
-                                VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity, :status, :speed)
-                            """), {
-                                "vehicle_id": vehicle_id,
-                                "timestamp": datetime.now(),
-                                "latitude": -1.2921,  # Nairobi default
-                                "longitude": 36.8219,
-                                "activity": "activated",
-                                "status": "online",
-                                "speed": 0.0
-                            })
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """), (
+                                vehicle_id,
+                                datetime.now(),
+                                -1.2921,  # Nairobi default
+                                36.8219,
+                                "activated",
+                                "online",
+                                0.0
+                            ))
                         st.success(f"GPS tracking activated for {selected_vehicle}")
                         st.info("The vehicle GPS tracker is now active and will start recording location, speed, and idle time data.")
                         st.info("📍 **Tracking Features:**")
@@ -193,11 +176,28 @@ def gps_tracking_page():
                         st.error(f"Failed to activate GPS tracking: {e}")
 
         with col2:
-            # Only show deactivate button when not active (for redundancy)
-            if current_status != 'online':
-                st.info("GPS tracking is currently inactive")
-                if st.button("🔴 Deactivate GPS Tracking", key="deactivate_inactive", disabled=True):
-                    pass  # Disabled button
+            if current_status == 'online':
+                if st.button("🔴 Deactivate GPS Tracking"):
+                    # Insert deactivation record
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """), (
+                                vehicle_id,
+                                datetime.now(),
+                                -1.2921,  # Nairobi default
+                                36.8219,
+                                "deactivated",
+                                "offline",
+                                0.0
+                            ))
+                        st.warning(f"GPS tracking deactivated for {selected_vehicle}")
+                        st.info("The vehicle GPS tracker has been stopped.")
+                        st.rerun()  # Refresh to show updated status
+                    except Exception as e:
+                        st.error(f"Failed to deactivate GPS tracking: {e}")
 
     # Date range selection
     col1, col2 = st.columns(2)
