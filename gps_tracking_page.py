@@ -90,23 +90,79 @@ def gps_tracking_page():
     # For patrol officers, add activation button
     if is_patrol:
         st.subheader("🚔 Patrol Vehicle Activation")
+
+        # Check current activation status
+        try:
+            status_query = """
+                SELECT status, timestamp
+                FROM patrol_logs
+                WHERE vehicle_id = %s
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """
+            status_df = pd.read_sql(status_query, engine, params=(vehicle_id,))
+            current_status = status_df['status'].iloc[0] if not status_df.empty else 'offline'
+            last_update = status_df['timestamp'].iloc[0] if not status_df.empty else None
+        except:
+            current_status = 'offline'
+            last_update = None
+
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🟢 Activate GPS Tracking", type="primary"):
-                # Here we would typically send a command to activate the GPS tracker
-                # For now, just show success message
-                st.success(f"GPS tracking activated for {selected_vehicle}")
-                st.info("The vehicle GPS tracker is now active and will start recording location, speed, and idle time data.")
-                st.info("📍 **Tracking Features:**")
-                st.markdown("- Real-time location monitoring")
-                st.markdown("- Speed tracking (km/h)")
-                st.markdown("- Date and time stamps")
-                st.markdown("- Idle time detection and recording")
+            if current_status == 'online':
+                st.success(f"🟢 GPS tracking is ACTIVE for {selected_vehicle}")
+                if last_update:
+                    st.info(f"Last GPS update: {last_update}")
+            else:
+                if st.button("🟢 Activate GPS Tracking", type="primary"):
+                    # Insert activation record
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
+                                VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity, :status, :speed)
+                            """), {
+                                "vehicle_id": vehicle_id,
+                                "timestamp": datetime.now(),
+                                "latitude": -1.2921,  # Nairobi default
+                                "longitude": 36.8219,
+                                "activity": "activated",
+                                "status": "online",
+                                "speed": 0.0
+                            })
+                        st.success(f"GPS tracking activated for {selected_vehicle}")
+                        st.info("The vehicle GPS tracker is now active and will start recording location, speed, and idle time data.")
+                        st.info("📍 **Tracking Features:**")
+                        st.markdown("- Real-time location monitoring")
+                        st.markdown("- Speed tracking (km/h)")
+                        st.markdown("- Date and time stamps")
+                        st.markdown("- Idle time detection and recording")
+                        st.rerun()  # Refresh to show updated status
+                    except Exception as e:
+                        st.error(f"Failed to activate GPS tracking: {e}")
+
         with col2:
             if st.button("🔴 Deactivate GPS Tracking"):
-                # Here we would typically send a command to deactivate the GPS tracker
-                st.warning(f"GPS tracking deactivated for {selected_vehicle}")
-                st.info("The vehicle GPS tracker has been stopped.")
+                # Insert deactivation record
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
+                            VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity, :status, :speed)
+                        """), {
+                            "vehicle_id": vehicle_id,
+                            "timestamp": datetime.now(),
+                            "latitude": -1.2921,  # Nairobi default
+                            "longitude": 36.8219,
+                            "activity": "deactivated",
+                            "status": "offline",
+                            "speed": 0.0
+                        })
+                    st.warning(f"GPS tracking deactivated for {selected_vehicle}")
+                    st.info("The vehicle GPS tracker has been stopped.")
+                    st.rerun()  # Refresh to show updated status
+                except Exception as e:
+                    st.error(f"Failed to deactivate GPS tracking: {e}")
 
     # Get vehicle ID
     vehicle_row = vehicles_df[vehicles_df['display_name'] == selected_vehicle]
