@@ -97,6 +97,9 @@ def init_database():
                     ('wizpro_user', 'Pass@12345', 'Wizpro User', 1, 'contractor'),
                     ('paschal_user', 'Pass@12345', 'Paschal User', 2, 'contractor'),
                     ('avators_user', 'Pass@12345', 'Avators User', 4, 'contractor'),
+                    ('patrol_officer_1', 'Pass@12345', 'Patrol Officer 1', 1, 'patrol'),
+                    ('patrol_officer_2', 'Pass@12345', 'Patrol Officer 2', 1, 'patrol'),
+                    ('patrol_officer_3', 'Pass@12345', 'Patrol Officer 3', 1, 'patrol'),
                 ]
 
                 # Use the same connection for user insertion
