@@ -138,15 +138,60 @@ def gps_tracking_page():
     start_datetime = datetime.combine(start_date, start_time)
     end_datetime = datetime.combine(end_date, end_time)
 
-    # Fetch GPS data (patrol logs)
-    gps_query = """
-        SELECT timestamp, latitude, longitude, activity, speed
-        FROM patrol_logs
-        WHERE vehicle_id = %s
-        AND timestamp BETWEEN %s AND %s
-        ORDER BY timestamp ASC
-    """
-    gps_df = pd.read_sql(gps_query, engine, params=(vehicle_id, start_datetime, end_datetime))
+    # Fetch GPS data (patrol logs) - create table if not exists
+    try:
+        # First ensure patrol_logs table exists
+        create_table_query = """
+            CREATE TABLE IF NOT EXISTS patrol_logs (
+                id SERIAL PRIMARY KEY,
+                vehicle_id INTEGER,
+                timestamp TIMESTAMP,
+                latitude REAL,
+                longitude REAL,
+                activity TEXT,
+                status TEXT DEFAULT 'offline',
+                speed REAL DEFAULT 0.0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+            )
+        """
+        with engine.begin() as conn:
+            conn.execute(text(create_table_query))
+
+        # Now fetch GPS data
+        gps_query = """
+            SELECT timestamp, latitude, longitude, activity, speed
+            FROM patrol_logs
+            WHERE vehicle_id = %s
+            AND timestamp BETWEEN %s AND %s
+            ORDER BY timestamp ASC
+        """
+        gps_df = pd.read_sql(gps_query, engine, params=(vehicle_id, start_datetime, end_datetime))
+    except Exception as e:
+        if "does not exist" in str(e):
+            st.info("Patrol logs table not found. Creating table...")
+            # Create the table and return empty dataframe
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS patrol_logs (
+                    id SERIAL PRIMARY KEY,
+                    vehicle_id INTEGER,
+                    timestamp TIMESTAMP,
+                    latitude REAL,
+                    longitude REAL,
+                    activity TEXT,
+                    status TEXT DEFAULT 'offline',
+                    speed REAL DEFAULT 0.0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+                )
+            """
+            with engine.begin() as conn:
+                conn.execute(text(create_table_query))
+            st.success("Patrol logs table created successfully!")
+            gps_df = pd.DataFrame()  # Empty dataframe since no data exists yet
+        else:
+            st.error(f"Error accessing patrol logs: {e}")
+            gps_df = pd.DataFrame()
 
     if gps_df.empty:
         st.warning(f"No GPS data found for {actual_plate_number} in the selected time range.")
