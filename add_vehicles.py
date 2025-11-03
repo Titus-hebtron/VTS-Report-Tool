@@ -19,18 +19,20 @@ def add_sample_vehicles():
         ('KDS 374F', 'Wizpro'),
         ('KDK 825Y', 'Wizpro'),
         ('Replacement Car', 'Wizpro'),
-    
+        ('Backup Vehicle', 'Wizpro'),
+
         # Paschal vehicles
         ('KDC 873G', 'Paschal'),
         ('KDD 500X', 'Paschal'),
         ('Replacement Car', 'Paschal'),
-    
+        ('Backup Vehicle', 'Paschal'),
+
         # Avators vehicles
         ('KAV 444A', 'Avators'),
         ('KAV 555A', 'Avators'),
         ('KAV 666A', 'Avators'),
         ('Replacement Car', 'Avators'),
-    
+
         # Patrol vehicles for GPS tracking (mapping to actual vehicle plates)
         # Patrol_1 = KP1 = KDK 825Y
         # Patrol_2 = KP2 = KDS 374F
