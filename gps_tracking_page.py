@@ -120,47 +120,45 @@ def gps_tracking_page():
             with engine.begin() as conn:
                 conn.execute(text(create_table_query))
 
-            # Now check status - only consider 'online' status from activation records
-            status_query = """
-                SELECT status, timestamp
+            # Check the most recent activation and deactivation records
+            combined_query = """
+                SELECT activity, status, timestamp
                 FROM patrol_logs
                 WHERE vehicle_id = %s
-                AND activity = 'activated'
-                AND status = 'online'
+                AND (activity = 'activated' OR activity = 'deactivated')
                 ORDER BY timestamp DESC
-                LIMIT 1
+                LIMIT 10
             """
-            status_df = pd.read_sql(status_query, engine, params=(vehicle_id,))
+            combined_df = pd.read_sql(combined_query, engine, params=(vehicle_id,))
 
-            # Check if there's a more recent deactivation
-            deactivation_query = """
-                SELECT timestamp
-                FROM patrol_logs
-                WHERE vehicle_id = %s
-                AND activity = 'deactivated'
-                AND status = 'offline'
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """
-            deactivation_df = pd.read_sql(deactivation_query, engine, params=(vehicle_id,))
+            # Determine current status based on the most recent action
+            if not combined_df.empty:
+                # Sort by timestamp descending to get the most recent first
+                combined_df = combined_df.sort_values('timestamp', ascending=False)
+                most_recent = combined_df.iloc[0]
 
-            # Determine current status
-            if not status_df.empty:
-                last_activation = status_df['timestamp'].iloc[0]
-                if deactivation_df.empty:
+                if most_recent['activity'] == 'activated' and most_recent['status'] == 'online':
                     current_status = 'online'
-                    last_update = last_activation
+                    last_update = most_recent['timestamp']
+                elif most_recent['activity'] == 'deactivated' and most_recent['status'] == 'offline':
+                    current_status = 'offline'
+                    last_update = most_recent['timestamp']
                 else:
-                    last_deactivation = deactivation_df['timestamp'].iloc[0]
-                    if last_activation > last_deactivation:
-                        current_status = 'online'
-                        last_update = last_activation
+                    # If the most recent record is inconsistent, check the previous records
+                    if len(combined_df) > 1:
+                        previous = combined_df.iloc[1]
+                        if previous['activity'] == 'activated' and previous['status'] == 'online':
+                            current_status = 'online'
+                            last_update = previous['timestamp']
+                        else:
+                            current_status = 'offline'
+                            last_update = most_recent['timestamp']
                     else:
                         current_status = 'offline'
-                        last_update = last_deactivation
+                        last_update = most_recent['timestamp']
             else:
                 current_status = 'offline'
-                last_update = deactivation_df['timestamp'].iloc[0] if not deactivation_df.empty else None
+                last_update = None
         except Exception as e:
             # If table doesn't exist or other error, assume offline
             current_status = 'offline'
@@ -170,7 +168,7 @@ def gps_tracking_page():
         if current_status == 'online':
             st.success(f"🟢 GPS tracking is ACTIVE for {selected_vehicle}")
             if last_update:
-                st.info(f"Last GPS update: {last_update}")
+                st.info(f"Activated at: {last_update}")
         else:
             st.info(f"🔴 GPS tracking is INACTIVE for {selected_vehicle}")
 
