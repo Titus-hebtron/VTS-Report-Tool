@@ -6,6 +6,7 @@ from db_utils import get_sqlalchemy_engine
 from sqlalchemy import text
 
 def init_database():
+    from db_utils import USE_SQLITE
     engine = get_sqlalchemy_engine()
 
     with open('schema.sql', 'r') as f:
@@ -15,7 +16,14 @@ def init_database():
     conn = engine.raw_connection()
     try:
         cursor = conn.cursor()
-        cursor.executescript(sql)
+        if USE_SQLITE:
+            cursor.executescript(sql)
+        else:
+            # PostgreSQL: split by semicolon and execute each statement
+            statements = [stmt.strip() for stmt in sql.split(';') if stmt.strip() and not stmt.strip().startswith('--')]
+            for statement in statements:
+                if statement:
+                    cursor.execute(statement)
         conn.commit()
         print("Database initialized successfully!")
     except Exception as e:
