@@ -225,7 +225,7 @@ def add_new_user(username, password, role, contractor_id):
         with engine.begin() as conn:
             if USE_SQLITE:
                 conn.execute(text("""
-                    INSERT INTO users (username, password_hash, role, contractor_id)
+                    INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id)
                     VALUES (:username, :password_hash, :role, :contractor_id)
                 """), {
                     "username": username,
@@ -234,16 +234,23 @@ def add_new_user(username, password, role, contractor_id):
                     "contractor_id": contractor_id
                 })
             else:
-                conn.execute(text("""
-                    INSERT INTO users (username, password_hash, role, contractor_id)
-                    VALUES (:username, :password_hash, :role, :contractor_id)
-                    ON CONFLICT (username) DO NOTHING
-                """), {
-                    "username": username,
-                    "password_hash": hashed,
-                    "role": role,
-                    "contractor_id": contractor_id
-                })
+                # For PostgreSQL, try INSERT first, then handle conflict manually
+                try:
+                    conn.execute(text("""
+                        INSERT INTO users (username, password_hash, role, contractor_id)
+                        VALUES (:username, :password_hash, :role, :contractor_id)
+                    """), {
+                        "username": username,
+                        "password_hash": hashed,
+                        "role": role,
+                        "contractor_id": contractor_id
+                    })
+                except Exception as e:
+                    if "unique constraint" in str(e).lower() or "duplicate key" in str(e).lower():
+                        # User already exists, ignore
+                        pass
+                    else:
+                        raise
         
         st.success(f"✅ User '{username}' created successfully!")
         
