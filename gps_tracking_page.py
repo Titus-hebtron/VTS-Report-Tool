@@ -57,20 +57,20 @@ def gps_tracking_page():
         vehicles_query = """
             SELECT id, plate_number
             FROM vehicles
-            WHERE contractor = (SELECT name FROM contractors WHERE id = :contractor_id)
+            WHERE contractor = (SELECT name FROM contractors WHERE id = %s)
             AND plate_number LIKE 'Patrol_%%'
             ORDER BY plate_number
         """
-        vehicles_df = pd.read_sql(vehicles_query, engine, params={"contractor_id": contractor_id})
+        vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
         vehicles_df['display_name'] = vehicles_df['plate_number']
     else:
         vehicles_query = """
             SELECT id, plate_number
             FROM vehicles
-            WHERE contractor = (SELECT name FROM contractors WHERE id = :contractor_id)
+            WHERE contractor = (SELECT name FROM contractors WHERE id = %s)
             ORDER BY plate_number
         """
-        vehicles_df = pd.read_sql(vehicles_query, engine, params={"contractor_id": contractor_id})
+        vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
         vehicles_df['display_name'] = vehicles_df['plate_number']
 
     if vehicles_df.empty:
