@@ -5,6 +5,7 @@ import pandas as pd
 from db_utils import get_sqlalchemy_engine, get_active_contractor
 from datetime import datetime, timedelta
 from sqlalchemy import text
+import time
 try:
     import plotly.express as px
     PLOTLY_AVAILABLE = True
@@ -100,8 +101,26 @@ def gps_tracking_page():
     if is_patrol:
         st.subheader("🚔 Patrol Vehicle Activation")
 
-        # Check current activation status
+        # Check current activation status - ensure table exists first
         try:
+            # First ensure patrol_logs table exists
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS patrol_logs (
+                    id SERIAL PRIMARY KEY,
+                    vehicle_id INTEGER,
+                    timestamp TIMESTAMP,
+                    latitude REAL,
+                    longitude REAL,
+                    activity TEXT,
+                    status TEXT DEFAULT 'offline',
+                    speed REAL DEFAULT 0.0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            with engine.begin() as conn:
+                conn.execute(text(create_table_query))
+
+            # Now check status
             status_query = """
                 SELECT status, timestamp
                 FROM patrol_logs
@@ -112,7 +131,8 @@ def gps_tracking_page():
             status_df = pd.read_sql(status_query, engine, params=(vehicle_id,))
             current_status = status_df['status'].iloc[0] if not status_df.empty else 'offline'
             last_update = status_df['timestamp'].iloc[0] if not status_df.empty else None
-        except:
+        except Exception as e:
+            # If table doesn't exist or other error, assume offline
             current_status = 'offline'
             last_update = None
 
@@ -141,6 +161,7 @@ def gps_tracking_page():
                             })
                         st.warning(f"GPS tracking deactivated for {selected_vehicle}")
                         st.info("The vehicle GPS tracker has been stopped.")
+                        time.sleep(0.5)  # Brief pause to ensure DB commit
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
                         st.error(f"Failed to deactivate GPS tracking: {e}")
@@ -168,6 +189,7 @@ def gps_tracking_page():
                         st.markdown("- Speed tracking (km/h)")
                         st.markdown("- Date and time stamps")
                         st.markdown("- Idle time detection and recording")
+                        time.sleep(0.5)  # Brief pause to ensure DB commit
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
                         st.error(f"Failed to activate GPS tracking: {e}")
