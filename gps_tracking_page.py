@@ -120,17 +120,47 @@ def gps_tracking_page():
             with engine.begin() as conn:
                 conn.execute(text(create_table_query))
 
-            # Now check status
+            # Now check status - only consider 'online' status from activation records
             status_query = """
                 SELECT status, timestamp
                 FROM patrol_logs
                 WHERE vehicle_id = %s
+                AND activity = 'activated'
+                AND status = 'online'
                 ORDER BY timestamp DESC
                 LIMIT 1
             """
             status_df = pd.read_sql(status_query, engine, params=(vehicle_id,))
-            current_status = status_df['status'].iloc[0] if not status_df.empty else 'offline'
-            last_update = status_df['timestamp'].iloc[0] if not status_df.empty else None
+
+            # Check if there's a more recent deactivation
+            deactivation_query = """
+                SELECT timestamp
+                FROM patrol_logs
+                WHERE vehicle_id = %s
+                AND activity = 'deactivated'
+                AND status = 'offline'
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """
+            deactivation_df = pd.read_sql(deactivation_query, engine, params=(vehicle_id,))
+
+            # Determine current status
+            if not status_df.empty:
+                last_activation = status_df['timestamp'].iloc[0]
+                if deactivation_df.empty:
+                    current_status = 'online'
+                    last_update = last_activation
+                else:
+                    last_deactivation = deactivation_df['timestamp'].iloc[0]
+                    if last_activation > last_deactivation:
+                        current_status = 'online'
+                        last_update = last_activation
+                    else:
+                        current_status = 'offline'
+                        last_update = last_deactivation
+            else:
+                current_status = 'offline'
+                last_update = deactivation_df['timestamp'].iloc[0] if not deactivation_df.empty else None
         except Exception as e:
             # If table doesn't exist or other error, assume offline
             current_status = 'offline'
