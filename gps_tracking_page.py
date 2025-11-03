@@ -122,6 +122,28 @@ def gps_tracking_page():
                 st.success(f"🟢 GPS tracking is ACTIVE for {selected_vehicle}")
                 if last_update:
                     st.info(f"Last GPS update: {last_update}")
+                # Show deactivate button when active
+                if st.button("🔴 Deactivate GPS Tracking", key="deactivate_active"):
+                    # Insert deactivation record
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
+                                VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity, :status, :speed)
+                            """), {
+                                "vehicle_id": vehicle_id,
+                                "timestamp": datetime.now(),
+                                "latitude": -1.2921,  # Nairobi default
+                                "longitude": 36.8219,
+                                "activity": "deactivated",
+                                "status": "offline",
+                                "speed": 0.0
+                            })
+                        st.warning(f"GPS tracking deactivated for {selected_vehicle}")
+                        st.info("The vehicle GPS tracker has been stopped.")
+                        st.rerun()  # Refresh to show updated status
+                    except Exception as e:
+                        st.error(f"Failed to deactivate GPS tracking: {e}")
             else:
                 if st.button("🟢 Activate GPS Tracking", type="primary"):
                     # Insert activation record
@@ -151,27 +173,11 @@ def gps_tracking_page():
                         st.error(f"Failed to activate GPS tracking: {e}")
 
         with col2:
-            if st.button("🔴 Deactivate GPS Tracking"):
-                # Insert deactivation record
-                try:
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
-                            VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity, :status, :speed)
-                        """), {
-                            "vehicle_id": vehicle_id,
-                            "timestamp": datetime.now(),
-                            "latitude": -1.2921,  # Nairobi default
-                            "longitude": 36.8219,
-                            "activity": "deactivated",
-                            "status": "offline",
-                            "speed": 0.0
-                        })
-                    st.warning(f"GPS tracking deactivated for {selected_vehicle}")
-                    st.info("The vehicle GPS tracker has been stopped.")
-                    st.rerun()  # Refresh to show updated status
-                except Exception as e:
-                    st.error(f"Failed to deactivate GPS tracking: {e}")
+            # Only show deactivate button when not active (for redundancy)
+            if current_status != 'online':
+                st.info("GPS tracking is currently inactive")
+                if st.button("🔴 Deactivate GPS Tracking", key="deactivate_inactive", disabled=True):
+                    pass  # Disabled button
 
     # Date range selection
     col1, col2 = st.columns(2)
