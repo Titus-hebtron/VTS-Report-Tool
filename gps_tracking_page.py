@@ -57,20 +57,20 @@ def gps_tracking_page():
         vehicles_query = """
             SELECT id, plate_number
             FROM vehicles
-            WHERE contractor = (SELECT name FROM contractors WHERE id = %s)
+            WHERE contractor = (SELECT name FROM contractors WHERE id = :contractor_id)
             AND plate_number LIKE 'Patrol_%%'
             ORDER BY plate_number
         """
-        vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+        vehicles_df = pd.read_sql(vehicles_query, engine, params={"contractor_id": contractor_id})
         vehicles_df['display_name'] = vehicles_df['plate_number']
     else:
         vehicles_query = """
             SELECT id, plate_number
             FROM vehicles
-            WHERE contractor = (SELECT name FROM contractors WHERE id = %s)
+            WHERE contractor = (SELECT name FROM contractors WHERE id = :contractor_id)
             ORDER BY plate_number
         """
-        vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+        vehicles_df = pd.read_sql(vehicles_query, engine, params={"contractor_id": contractor_id})
         vehicles_df['display_name'] = vehicles_df['plate_number']
 
     if vehicles_df.empty:
@@ -124,11 +124,11 @@ def gps_tracking_page():
             status_query = """
                 SELECT status, timestamp
                 FROM patrol_logs
-                WHERE vehicle_id = %s
+                WHERE vehicle_id = :vehicle_id
                 ORDER BY timestamp DESC
                 LIMIT 1
             """
-            status_df = pd.read_sql(status_query, engine, params=(vehicle_id,))
+            status_df = pd.read_sql(status_query, engine, params={"vehicle_id": vehicle_id})
             current_status = status_df['status'].iloc[0] if not status_df.empty else 'offline'
             last_update = status_df['timestamp'].iloc[0] if not status_df.empty else None
         except Exception as e:
@@ -244,11 +244,11 @@ def gps_tracking_page():
         gps_query = """
             SELECT timestamp, latitude, longitude, activity, speed
             FROM patrol_logs
-            WHERE vehicle_id = %s
-            AND timestamp BETWEEN %s AND %s
+            WHERE vehicle_id = :vehicle_id
+            AND timestamp BETWEEN :start_datetime AND :end_datetime
             ORDER BY timestamp ASC
         """
-        gps_df = pd.read_sql(gps_query, engine, params=(vehicle_id, start_datetime, end_datetime))
+        gps_df = pd.read_sql(gps_query, engine, params={"vehicle_id": vehicle_id, "start_datetime": start_datetime, "end_datetime": end_datetime})
     except Exception as e:
         if "does not exist" in str(e):
             st.info("Patrol logs table not found. Creating table...")
