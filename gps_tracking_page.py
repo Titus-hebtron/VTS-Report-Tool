@@ -155,7 +155,7 @@ def gps_tracking_page():
                             conn.execute(text("""
                                 INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
                                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-                            """), (
+                            """), [
                                 vehicle_id,
                                 datetime.now(),
                                 -1.2921,  # Nairobi default
@@ -163,7 +163,7 @@ def gps_tracking_page():
                                 "activated",
                                 "online",
                                 0.0
-                            ))
+                            ])
                         st.success(f"GPS tracking activated for {selected_vehicle}")
                         st.info("The vehicle GPS tracker is now active and will start recording location, speed, and idle time data.")
                         st.info("📍 **Tracking Features:**")
@@ -184,7 +184,7 @@ def gps_tracking_page():
                             conn.execute(text("""
                                 INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, status, speed)
                                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-                            """), (
+                            """), [
                                 vehicle_id,
                                 datetime.now(),
                                 -1.2921,  # Nairobi default
@@ -192,7 +192,7 @@ def gps_tracking_page():
                                 "deactivated",
                                 "offline",
                                 0.0
-                            ))
+                            ])
                         st.warning(f"GPS tracking deactivated for {selected_vehicle}")
                         st.info("The vehicle GPS tracker has been stopped.")
                         st.rerun()  # Refresh to show updated status
