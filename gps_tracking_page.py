@@ -124,11 +124,11 @@ def gps_tracking_page():
             status_query = """
                 SELECT status, timestamp
                 FROM patrol_logs
-                WHERE vehicle_id = :vehicle_id
+                WHERE vehicle_id = %s
                 ORDER BY timestamp DESC
                 LIMIT 1
             """
-            status_df = pd.read_sql(status_query, engine, params={"vehicle_id": vehicle_id})
+            status_df = pd.read_sql(status_query, engine, params=(vehicle_id,))
             current_status = status_df['status'].iloc[0] if not status_df.empty else 'offline'
             last_update = status_df['timestamp'].iloc[0] if not status_df.empty else None
         except Exception as e:
@@ -244,11 +244,11 @@ def gps_tracking_page():
         gps_query = """
             SELECT timestamp, latitude, longitude, activity, speed
             FROM patrol_logs
-            WHERE vehicle_id = :vehicle_id
-            AND timestamp BETWEEN :start_datetime AND :end_datetime
+            WHERE vehicle_id = %s
+            AND timestamp BETWEEN %s AND %s
             ORDER BY timestamp ASC
         """
-        gps_df = pd.read_sql(gps_query, engine, params={"vehicle_id": vehicle_id, "start_datetime": start_datetime, "end_datetime": end_datetime})
+        gps_df = pd.read_sql(gps_query, engine, params=(vehicle_id, start_datetime, end_datetime))
     except Exception as e:
         if "does not exist" in str(e):
             st.info("Patrol logs table not found. Creating table...")
