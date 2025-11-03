@@ -201,9 +201,11 @@ def gps_tracking_page():
                         st.markdown("- Idle time detection and recording")
                         # GPS tracking remains active until manually deactivated
                         # No automatic timeout - stays active for 24+ hours
+                        time.sleep(0.1)  # Brief pause to ensure DB commit
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
-                        st.error(f"Failed to activate GPS tracking: {e}")
+                        st.error(f"FATAL DB ERROR: Failed to activate GPS tracking: {e}")
+                        # Don't rerun on failure
 
         with col2:
             if current_status == 'online':
@@ -227,9 +229,11 @@ def gps_tracking_page():
                         st.info("The vehicle GPS tracker has been stopped.")
                         # GPS tracking remains active until manually deactivated
                         # No automatic timeout - stays active for 24+ hours
+                        time.sleep(0.1)  # Brief pause to ensure DB commit
                         st.rerun()  # Refresh to show updated status
                     except Exception as e:
-                        st.error(f"Failed to deactivate GPS tracking: {e}")
+                        st.error(f"FATAL DB ERROR: Failed to deactivate GPS tracking: {e}")
+                        # Don't rerun on failure
 
     # Date range selection
     col1, col2 = st.columns(2)
