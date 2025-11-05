@@ -100,12 +100,16 @@ class PatrolLogRequest(BaseModel):
     speed: float
     status: str = "online"
 
-@app.post("/patrol_logs")
+@app.post("/patrol_logs", status_code=201)
 def create_patrol_log(log: PatrolLogRequest, user: dict = Depends(verify_token)):
+    """
+    Create a new patrol log entry with GPS location, speed, and status.
+    This endpoint is called by mobile apps and web apps when GPS tracking is active.
+    """
     engine = get_sqlalchemy_engine()
     insert_query = """
-        INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity)
-        VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity)
+        INSERT INTO patrol_logs (vehicle_id, timestamp, latitude, longitude, activity, speed, status)
+        VALUES (:vehicle_id, :timestamp, :latitude, :longitude, :activity, :speed, :status)
     """
     try:
         with engine.begin() as conn:
@@ -114,9 +118,11 @@ def create_patrol_log(log: PatrolLogRequest, user: dict = Depends(verify_token))
                 "timestamp": log.timestamp,
                 "latitude": log.latitude,
                 "longitude": log.longitude,
-                "activity": log.activity
+                "activity": log.activity,
+                "speed": log.speed,
+                "status": log.status
             })
-        return {"message": "Patrol log created successfully"}
+        return {"message": "Patrol log created successfully", "status": "online"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create patrol log: {str(e)}")
 

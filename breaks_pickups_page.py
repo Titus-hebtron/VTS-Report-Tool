@@ -19,7 +19,7 @@ except ImportError:
 # ------------------------ HELPER FUNCTIONS ------------------------
 def get_vehicles_for_logged_in_contractor():
     """
-    Returns a list of plate_numbers of vehicles assigned to the logged-in contractor.
+    Returns a list of unique plate_numbers of vehicles assigned to the logged-in contractor.
     Uses st.session_state['contractor'] to filter vehicles.
     """
     contractor = st.session_state.get('contractor')
@@ -38,11 +38,12 @@ def get_vehicles_for_logged_in_contractor():
     try:
         with engine.begin() as conn:
             result = conn.execute(query, {"contractor": contractor})
-            vehicles = [row[0] for row in result.fetchall()]
+            # Get unique plates only
+            vehicles = list(set([row[0] for row in result.fetchall()]))
 
         if not vehicles:
             st.warning(f"⚠️ No vehicles found for contractor: {contractor}")
-        return vehicles
+        return sorted(vehicles)  # Return sorted unique plates
 
     except Exception as e:
         st.error(f"❌ Error fetching vehicles: {e}")
@@ -99,7 +100,14 @@ def breaks_pickups_page():
     # ---------------- Break Form ----------------
     st.subheader("🛑 Record a Break")
     with st.form("break_form"):
-        break_vehicle = st.selectbox("Select Patrol Vehicle", patrol_vehicle_options)
+        # Use persistent vehicle selection
+        if st.session_state.get("selected_vehicle") and st.session_state["selected_vehicle"] in patrol_vehicle_options:
+            default_break_vehicle = st.session_state["selected_vehicle"]
+        else:
+            default_break_vehicle = patrol_vehicle_options[0] if patrol_vehicle_options else None
+
+        break_vehicle = st.selectbox("Select Patrol Vehicle", patrol_vehicle_options,
+                                   index=patrol_vehicle_options.index(default_break_vehicle) if default_break_vehicle in patrol_vehicle_options else 0)
         break_driver = st.text_input("Driver Name")
         break_reason = st.text_area("Reason for Break")
         break_date = st.date_input("Break Date")
@@ -135,7 +143,14 @@ def breaks_pickups_page():
     # ---------------- Pickup Form ----------------
     st.subheader("📦 Record a Pickup")
     with st.form("pickup_form"):
-        pickup_vehicle = st.selectbox("Select Patrol Vehicle for Pickup", patrol_vehicle_options)
+        # Use persistent vehicle selection
+        if st.session_state.get("selected_vehicle") and st.session_state["selected_vehicle"] in patrol_vehicle_options:
+            default_pickup_vehicle = st.session_state["selected_vehicle"]
+        else:
+            default_pickup_vehicle = patrol_vehicle_options[0] if patrol_vehicle_options else None
+
+        pickup_vehicle = st.selectbox("Select Patrol Vehicle for Pickup", patrol_vehicle_options,
+                                    index=patrol_vehicle_options.index(default_pickup_vehicle) if default_pickup_vehicle in patrol_vehicle_options else 0)
         pickup_driver = st.text_input("Pickup Driver Name")
         pickup_description = st.text_input("Pickup Description")
         pickup_date = st.date_input("Pickup Date")
@@ -194,7 +209,15 @@ def breaks_pickups_page():
 
     # ---------------- View Reports ----------------
     st.subheader("📊 View Breaks & Pickups Report")
-    vehicle_filter = st.selectbox("Select Vehicle", patrol_vehicle_options, key="combined_filter")
+    # Use persistent vehicle selection for report filter
+    if st.session_state.get("selected_vehicle") and st.session_state["selected_vehicle"] in patrol_vehicle_options:
+        default_report_vehicle = st.session_state["selected_vehicle"]
+    else:
+        default_report_vehicle = patrol_vehicle_options[0] if patrol_vehicle_options else None
+
+    vehicle_filter = st.selectbox("Select Vehicle", patrol_vehicle_options,
+                                index=patrol_vehicle_options.index(default_report_vehicle) if default_report_vehicle in patrol_vehicle_options else 0,
+                                key="combined_filter")
     week_start = st.date_input("Week Start Date", key="combined_week_start")
     week_end = st.date_input("Week End Date", key="combined_week_end")
 

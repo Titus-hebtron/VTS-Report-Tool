@@ -117,7 +117,13 @@ def user_management_section():
                     with col3:
                         st.write(user['contractor_name'] if user['contractor_name'] else 'N/A')
                     with col4:
-                        created_date = pd.to_datetime(user['created_at']).strftime('%Y-%m-%d') if user['created_at'] else 'N/A'
+                        try:
+                            if user['created_at'] and pd.notna(user['created_at']):
+                                created_date = pd.to_datetime(user['created_at']).strftime('%Y-%m-%d')
+                            else:
+                                created_date = 'N/A'
+                        except:
+                            created_date = 'N/A'
                         st.write(created_date)
                     with col5:
                         col_edit, col_delete = st.columns(2)
@@ -376,7 +382,10 @@ def contractor_management_section():
                 with col4:
                     st.write(f"📄 {contractor['report_count']} reports")
                 with col5:
-                    created_date = pd.to_datetime(contractor['created_at']).strftime('%Y-%m-%d') if contractor['created_at'] else 'N/A'
+                    if contractor['created_at'] and pd.notna(contractor['created_at']):
+                        created_date = pd.to_datetime(contractor['created_at']).strftime('%Y-%m-%d')
+                    else:
+                        created_date = 'N/A'
                     st.write(created_date)
                 with col6:
                     # Only allow deletion if no users/vehicles/reports
@@ -518,7 +527,10 @@ def patrol_car_management_section():
                     with col3:
                         st.write(f"📄 {vehicle['incident_count']} incidents")
                     with col4:
-                        created_date = pd.to_datetime(vehicle['created_at']).strftime('%Y-%m-%d') if vehicle['created_at'] else 'N/A'
+                        if vehicle['created_at'] and pd.notna(vehicle['created_at']):
+                            created_date = pd.to_datetime(vehicle['created_at']).strftime('%Y-%m-%d')
+                        else:
+                            created_date = 'N/A'
                         st.write(created_date)
                     with col5:
                         if st.button("🗑️", key=f"delete_vehicle_{vehicle['id']}", help="Delete patrol car"):
@@ -692,18 +704,48 @@ def data_management_section():
 
         st.markdown("---")
 
-        # Display statistics
+        # Display statistics with date ranges
         st.subheader("📊 Database Statistics")
+
+        # Get date ranges for each table
+        date_ranges = {}
+        tables_with_dates = [
+            ('incident_reports', 'incident_date'),
+            ('idle_reports', 'uploaded_at'),
+            ('patrol_logs', 'timestamp'),
+            ('breaks', 'break_date'),
+            ('pickups', 'pickup_date')
+        ]
+
+        for table_name, date_column in tables_with_dates:
+            try:
+                date_query = f"SELECT MIN({date_column}) as min_date, MAX({date_column}) as max_date FROM {table_name}"
+                date_result = pd.read_sql_query(text(date_query), engine)
+                if not date_result.empty and date_result.iloc[0]['min_date'] is not None and pd.notna(date_result.iloc[0]['min_date']):
+                    min_date = pd.to_datetime(date_result.iloc[0]['min_date']).strftime('%m/%d/%Y')
+                    max_date = pd.to_datetime(date_result.iloc[0]['max_date']).strftime('%m/%d/%Y')
+                    date_ranges[table_name] = f"({min_date}-{max_date})"
+                else:
+                    date_ranges[table_name] = ""
+            except Exception:
+                date_ranges[table_name] = ""
+
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Incident Reports", stats['incident_count'])
-            st.metric("Incident Images", stats['image_count'])
+            incident_label = f"Incident Reports {date_ranges.get('incident_reports', '')}"
+            st.metric(incident_label, stats['incident_count'])
+            image_label = f"Incident Images {date_ranges.get('incident_reports', '')}"
+            st.metric(image_label, stats['image_count'])
         with col2:
-            st.metric("Idle Reports", stats['idle_count'])
-            st.metric("Patrol Logs", stats['patrol_count'])
+            idle_label = f"Idle Reports {date_ranges.get('idle_reports', '')}"
+            st.metric(idle_label, stats['idle_count'])
+            patrol_label = f"Patrol Logs {date_ranges.get('patrol_logs', '')}"
+            st.metric(patrol_label, stats['patrol_count'])
         with col3:
-            st.metric("Breaks", stats['break_count'])
-            st.metric("Pickups", stats['pickup_count'])
+            breaks_label = f"Breaks {date_ranges.get('breaks', '')}"
+            st.metric(breaks_label, stats['break_count'])
+            pickups_label = f"Pickups {date_ranges.get('pickups', '')}"
+            st.metric(pickups_label, stats['pickup_count'])
         with col4:
             st.metric("Vehicles", stats['vehicle_count'])
 
@@ -789,7 +831,7 @@ def data_management_section():
                 if delete_idle_contractor != "All Contractors":
                     contractor_id = contractors_df[contractors_df['name'] == delete_idle_contractor]['id'].iloc[0]
                     preview_query += " AND contractor_id = :contractor_id"
-                    params['contractor_id'] = contractor_id
+                    params['contractor_id'] = int(contractor_id)
 
                 if len(delete_idle_date_range) == 2:
                     preview_query += " AND DATE(uploaded_at) BETWEEN :start_date AND :end_date"
@@ -946,7 +988,7 @@ def delete_incident_reports(contractor_filter, date_range, contractors_df):
             if contractor_filter != "All Contractors":
                 contractor_id = contractors_df[contractors_df['name'] == contractor_filter]['id'].iloc[0]
                 delete_query += " AND contractor_id = :contractor_id"
-                params['contractor_id'] = contractor_id
+                params['contractor_id'] = int(contractor_id)
             
             if len(date_range) == 2:
                 delete_query += " AND incident_date BETWEEN :start_date AND :end_date"
@@ -980,7 +1022,7 @@ def delete_idle_reports(contractor_filter, date_range, contractors_df):
             if contractor_filter != "All Contractors":
                 contractor_id = contractors_df[contractors_df['name'] == contractor_filter]['id'].iloc[0]
                 delete_query += " AND contractor_id = :contractor_id"
-                params['contractor_id'] = contractor_id
+                params['contractor_id'] = int(contractor_id)
             
             if len(date_range) == 2:
                 delete_query += " AND DATE(uploaded_at) BETWEEN :start_date AND :end_date"
@@ -1031,7 +1073,7 @@ def delete_breaks(contractor_filter, date_range, contractors_df):
             if contractor_filter != "All Contractors":
                 contractor_id = contractors_df[contractors_df['name'] == contractor_filter]['id'].iloc[0]
                 delete_query += " AND contractor_id = :contractor_id"
-                params['contractor_id'] = contractor_id
+                params['contractor_id'] = int(contractor_id)
             
             if len(date_range) == 2:
                 delete_query += " AND break_date BETWEEN :start_date AND :end_date"
@@ -1059,7 +1101,7 @@ def delete_pickups(contractor_filter, date_range, contractors_df):
             if contractor_filter != "All Contractors":
                 contractor_id = contractors_df[contractors_df['name'] == contractor_filter]['id'].iloc[0]
                 delete_query += " AND contractor_id = :contractor_id"
-                params['contractor_id'] = contractor_id
+                params['contractor_id'] = int(contractor_id)
             
             if len(date_range) == 2:
                 delete_query += " AND pickup_date BETWEEN :start_date AND :end_date"

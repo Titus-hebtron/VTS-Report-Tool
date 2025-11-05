@@ -41,10 +41,11 @@ def init_database_if_needed():
 
         engine = get_sqlalchemy_engine()
         with engine.begin() as conn:
+            # Total of 8 vehicles: 3 Wizpro, 2 Paschal, 3 Avators
             vehicles = [
-                ('KDG 320Z', 'Wizpro'), ('KDS 374F', 'Wizpro'), ('KDK 825Y', 'Wizpro'), ('Replacement Car', 'Wizpro'),
-                ('KDC 873G', 'Paschal'), ('KDD 500X', 'Paschal'), ('Replacement Car', 'Paschal'),
-                ('KAV 444A', 'Avators'), ('KAV 555A', 'Avators'), ('KAV 666A', 'Avators'), ('Replacement Car', 'Avators')
+                ('KDG 320Z', 'Wizpro'), ('KDS 374F', 'Wizpro'), ('KDK 825Y', 'Wizpro'),
+                ('KDC 873G', 'Paschal'), ('KDD 500X', 'Paschal'),
+                ('KAV 444A', 'Avators'), ('KAV 555A', 'Avators'), ('KAV 666A', 'Avators')
             ]
             # Use raw cursor for vehicle insertion to avoid SQLAlchemy parameter issues
             cursor = conn.connection.cursor()
@@ -140,6 +141,7 @@ if "login_state" not in st.session_state:
     st.session_state["user_name"] = None
     st.session_state["contractor"] = None
     st.session_state["role"] = None
+    st.session_state["selected_vehicle"] = None
 
 # ---------------- LOGIN PAGE ----------------
 if not st.session_state["login_state"]:
@@ -562,8 +564,26 @@ if not vehicle_list:
     patrol_vehicle_options = ["Replacement Car"]
     selected_vehicle = None
 else:
-    patrol_vehicle_options = [v["plate_number"] for v in vehicle_list]
-    selected_vehicle = st.sidebar.selectbox("🚗 Select Vehicle", patrol_vehicle_options)
+    # Get unique vehicle plates only (remove duplicates)
+    all_plates = [v["plate_number"] for v in vehicle_list]
+    patrol_vehicle_options = sorted(list(set(all_plates)))
+
+    # Use persistent vehicle selection
+    if st.session_state.get("selected_vehicle") and st.session_state["selected_vehicle"] in patrol_vehicle_options:
+        default_index = patrol_vehicle_options.index(st.session_state["selected_vehicle"])
+    else:
+        default_index = 0
+
+    selected_vehicle = st.sidebar.selectbox(
+        "🚗 Select Vehicle",
+        patrol_vehicle_options,
+        index=default_index,
+        key="vehicle_selector"
+    )
+
+    # Update session state when vehicle changes
+    if selected_vehicle != st.session_state.get("selected_vehicle"):
+        st.session_state["selected_vehicle"] = selected_vehicle
 
 # ---- LOAD PATROL LOGS ----
 if selected_vehicle:
@@ -650,6 +670,9 @@ if contractor == "paschal":
 page = st.sidebar.radio("📑 Go to", allowed_pages, key="page_selector")
 
 # ---- PAGE ROUTER ----
+# Clear previous page content to prevent overshadowing
+st.empty()
+
 if page == "Incident Report":
     from incident_report import incident_report_page
     incident_report_page(patrol_vehicle_options)

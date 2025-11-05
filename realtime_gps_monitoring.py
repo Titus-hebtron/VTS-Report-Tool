@@ -37,7 +37,7 @@ def realtime_gps_monitoring_page():
     engine = get_sqlalchemy_engine()
 
     if is_re_office:
-        # RE Office sees vehicles from Wizpro and Paschal contractors only
+        # RE Office sees vehicles from Wizpro, Paschal, and Avators contractors
         # Always show vehicles even without GPS data - they should be visible on map
         try:
             vehicles_query = """
@@ -59,7 +59,7 @@ def realtime_gps_monitoring_page():
                         WHERE vehicle_id = v.id
                         AND timestamp > datetime('now', '-24 hours')  -- Extended to 24 hours
                     )
-                WHERE c.name IN ('Wizpro', 'Paschal')
+                WHERE c.name IN ('Wizpro', 'Paschal', 'Avators')
                 ORDER BY c.name, v.plate_number
             """
             vehicles_df = pd.read_sql(vehicles_query, engine)
@@ -78,7 +78,7 @@ def realtime_gps_monitoring_page():
                         'offline' as status
                     FROM vehicles v
                     JOIN contractors c ON v.contractor = c.name
-                    WHERE c.name IN ('Wizpro', 'Paschal')
+                    WHERE c.name IN ('Wizpro', 'Paschal', 'Avators')
                     ORDER BY c.name, v.plate_number
                 """
                 vehicles_df = pd.read_sql(vehicles_query, engine)
@@ -135,10 +135,12 @@ def realtime_gps_monitoring_page():
 
     # Display statistics
     st.subheader("📊 Fleet Status Overview")
-
+    
+    # Show total vehicle count (should be 8 for Wizpro + Paschal, or contractor-specific count)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         total_vehicles = len(vehicles_df)
+        # Display the actual count from database
         st.metric("Total Vehicles", total_vehicles)
     with col2:
         online_count = len(vehicles_df[vehicles_df['status'] == 'online'])

@@ -326,7 +326,15 @@ def incident_report_page(patrol_vehicle_options=None):
 
     # ---------------- Incident Form ----------------
     incident_type = st.selectbox("Incident Type", ["Accident", "Incident"])
-    patrol_car = st.selectbox("Select Patrol Car", patrol_vehicle_options)
+
+    # Use persistent vehicle selection
+    if st.session_state.get("selected_vehicle") and st.session_state["selected_vehicle"] in patrol_vehicle_options:
+        default_incident_vehicle = st.session_state["selected_vehicle"]
+    else:
+        default_incident_vehicle = patrol_vehicle_options[0] if patrol_vehicle_options else None
+
+    patrol_car = st.selectbox("Select Patrol Car", patrol_vehicle_options,
+                             index=patrol_vehicle_options.index(default_incident_vehicle) if default_incident_vehicle in patrol_vehicle_options else 0)
 
     with st.form("incident_form", clear_on_submit=True):
         st.subheader("Incident Details")
