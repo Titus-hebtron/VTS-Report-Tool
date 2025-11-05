@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS vehicles (
     id SERIAL PRIMARY KEY,
     plate_number TEXT NOT NULL,
     contractor TEXT NOT NULL,
+    gps_tracking_enabled BOOLEAN DEFAULT FALSE,
+    gps_tracking_activated_at TIMESTAMP,
+    gps_tracking_deactivated_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

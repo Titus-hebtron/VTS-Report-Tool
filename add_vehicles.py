@@ -34,12 +34,19 @@ def add_sample_vehicles():
         ('Replacement Car', 'Avators'),
 
         # Patrol vehicles for GPS tracking (mapping to actual vehicle plates)
+        # Wizpro mappings:
         # Patrol_1 = KP1 = KDK 825Y
         # Patrol_2 = KP2 = KDS 374F
         # Patrol_3 = KP3 = KDG 320Z
         ('Patrol_1 (KP1 - KDK 825Y)', 'Wizpro'),
         ('Patrol_2 (KP2 - KDS 374F)', 'Wizpro'),
         ('Patrol_3 (KP3 - KDG 320Z)', 'Wizpro'),
+
+        # Paschal mappings:
+        # Patrol_1 = KP1 = KDD 500X
+        # Patrol_2 = KP2 = KDC 873G
+        ('Patrol_1 (KP1 - KDD 500X)', 'Paschal'),
+        ('Patrol_2 (KP2 - KDC 873G)', 'Paschal'),
     ]
 
     with engine.begin() as conn:

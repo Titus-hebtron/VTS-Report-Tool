@@ -459,13 +459,14 @@ def patrol_car_management_section():
     try:
         engine = get_sqlalchemy_engine()
 
-        # Get vehicles with contractor info
+        # Get vehicles with contractor info and GPS tracking status
         query = """
             SELECT v.id, v.plate_number, v.contractor, v.created_at,
+                   v.gps_tracking_enabled, v.gps_tracking_activated_at, v.gps_tracking_deactivated_at,
                    COUNT(DISTINCT ir.id) as incident_count
             FROM vehicles v
             LEFT JOIN incident_reports ir ON v.plate_number = ir.patrol_car
-            GROUP BY v.id, v.plate_number, v.contractor, v.created_at
+            GROUP BY v.id, v.plate_number, v.contractor, v.created_at, v.gps_tracking_enabled, v.gps_tracking_activated_at, v.gps_tracking_deactivated_at
             ORDER BY v.contractor, v.plate_number
         """
         vehicles_df = pd.read_sql_query(text(query), engine)
@@ -518,22 +519,39 @@ def patrol_car_management_section():
         if len(filtered_df) > 0:
             for idx, vehicle in filtered_df.iterrows():
                 with st.container():
-                    col1, col2, col3, col4, col5 = st.columns([3, 2, 2, 2, 1])
+                    col1, col2, col3, col4, col5, col6 = st.columns([3, 2, 2, 2, 2, 1])
 
                     with col1:
                         st.write(f"**{vehicle['plate_number']}**")
                     with col2:
                         st.write(f"🏢 {vehicle['contractor']}")
                     with col3:
-                        st.write(f"📄 {vehicle['incident_count']} incidents")
+                        # GPS tracking status
+                        if vehicle['gps_tracking_enabled']:
+                            st.write("📍 **GPS ACTIVE**")
+                        else:
+                            st.write("📍 GPS Inactive")
                     with col4:
+                        st.write(f"📄 {vehicle['incident_count']} incidents")
+                    with col5:
                         if vehicle['created_at'] and pd.notna(vehicle['created_at']):
                             created_date = pd.to_datetime(vehicle['created_at']).strftime('%Y-%m-%d')
                         else:
                             created_date = 'N/A'
                         st.write(created_date)
-                    with col5:
-                        if st.button("🗑️", key=f"delete_vehicle_{vehicle['id']}", help="Delete patrol car"):
+                    with col6:
+                        # GPS control buttons
+                        if vehicle['gps_tracking_enabled']:
+                            if st.button("🔴", key=f"deactivate_gps_{vehicle['id']}_{idx}", help="Deactivate GPS tracking"):
+                                deactivate_vehicle_gps(vehicle['id'])
+                                st.rerun()
+                        else:
+                            if st.button("🟢", key=f"activate_gps_{vehicle['id']}_{idx}", help="Activate GPS tracking"):
+                                activate_vehicle_gps(vehicle['id'])
+                                st.rerun()
+
+                        # Delete button
+                        if st.button("🗑️", key=f"delete_vehicle_{vehicle['id']}_{idx}", help="Delete patrol car"):
                             st.session_state[f"confirm_delete_vehicle_{vehicle['id']}"] = True
 
                 # Delete confirmation
@@ -589,10 +607,51 @@ def delete_vehicle(vehicle_id, plate_number):
         with engine.begin() as conn:
             conn.execute(text("DELETE FROM vehicles WHERE id = :vehicle_id"), {"vehicle_id": vehicle_id})
 
-        st.success(f"✅ Patrol car '{plate_number}' deleted successfully!")
+        st.success(f"Patrol car '{plate_number}' deleted successfully!")
 
     except Exception as e:
         st.error(f"Error deleting patrol car: {e}")
+        raise
+
+
+def activate_vehicle_gps(vehicle_id):
+    """Activate GPS tracking for a specific vehicle"""
+    try:
+        engine = get_sqlalchemy_engine()
+
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE vehicles
+                SET gps_tracking_enabled = TRUE,
+                    gps_tracking_activated_at = CURRENT_TIMESTAMP,
+                    gps_tracking_deactivated_at = NULL
+                WHERE id = :vehicle_id
+            """), {"vehicle_id": vehicle_id})
+
+        st.success("GPS tracking activated for vehicle!")
+
+    except Exception as e:
+        st.error(f"Error activating GPS tracking: {e}")
+        raise
+
+
+def deactivate_vehicle_gps(vehicle_id):
+    """Deactivate GPS tracking for a specific vehicle"""
+    try:
+        engine = get_sqlalchemy_engine()
+
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE vehicles
+                SET gps_tracking_enabled = FALSE,
+                    gps_tracking_deactivated_at = CURRENT_TIMESTAMP
+                WHERE id = :vehicle_id
+            """), {"vehicle_id": vehicle_id})
+
+        st.success("GPS tracking deactivated for vehicle!")
+
+    except Exception as e:
+        st.error(f"Error deactivating GPS tracking: {e}")
         raise
 
 
