@@ -37,9 +37,9 @@ def add_sample_vehicles():
         # Patrol_1 = KP1 = KDK 825Y
         # Patrol_2 = KP2 = KDS 374F
         # Patrol_3 = KP3 = KDG 320Z
-        ('Patrol_1', 'Wizpro'),
-        ('Patrol_2', 'Wizpro'),
-        ('Patrol_3', 'Wizpro'),
+        ('Patrol_1 (KP1 - KDK 825Y)', 'Wizpro'),
+        ('Patrol_2 (KP2 - KDS 374F)', 'Wizpro'),
+        ('Patrol_3 (KP3 - KDG 320Z)', 'Wizpro'),
     ]
 
     with engine.begin() as conn:

@@ -128,16 +128,16 @@ def user_management_section():
                     with col5:
                         col_edit, col_delete = st.columns(2)
                         with col_edit:
-                            if st.button("✏️", key=f"edit_{user['id']}", help="Edit user"):
+                            if st.button("✏️", key=f"edit_{user['id']}_{idx}", help="Edit user"):
                                 st.session_state[f"editing_user_{user['id']}"] = True
                         with col_delete:
                             # Prevent deleting self and last re_admin
                             current_username = st.session_state.get("username", "")
                             is_self = user['username'] == current_username
                             is_last_admin = user['role'] == 're_admin' and len(users_df[users_df['role'] == 're_admin']) == 1
-                            
+
                             if not is_self and not is_last_admin:
-                                if st.button("🗑️", key=f"delete_{user['id']}", help="Delete user"):
+                                if st.button("🗑️", key=f"delete_{user['id']}_{idx}", help="Delete user"):
                                     st.session_state[f"confirm_delete_{user['id']}"] = True
                             else:
                                 st.write("🔒")
@@ -173,12 +173,12 @@ def user_management_section():
                         st.warning(f"⚠️ Are you sure you want to delete user **{user['username']}**?")
                         col1, col2 = st.columns(2)
                         with col1:
-                            if st.button("✅ Yes, Delete", key=f"confirm_yes_{user['id']}"):
+                            if st.button("✅ Yes, Delete", key=f"confirm_yes_{user['id']}_{idx}"):
                                 delete_user(user['id'], user['username'])
                                 st.session_state[f"confirm_delete_{user['id']}"] = False
                                 st.rerun()
                         with col2:
-                            if st.button("❌ Cancel", key=f"confirm_no_{user['id']}"):
+                            if st.button("❌ Cancel", key=f"confirm_no_{user['id']}_{idx}"):
                                 st.session_state[f"confirm_delete_{user['id']}"] = False
                                 st.rerun()
 
