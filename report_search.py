@@ -136,8 +136,8 @@ def get_weekly_data(vehicle, week_start, week_end, contractor_id=None):
     with engine.connect() as conn:
         idle_df = pd.read_sql_query(idle_query, conn, params=params)
 
-    # Filter for idle periods over 10 minutes
-    idle_df = idle_df[idle_df['idle_duration_min'] > 10]
+    # Filter for idle periods over 5 minutes
+    idle_df = idle_df[idle_df['idle_duration_min'] > 5]
 
     if vehicle != "All":
         selected_plate = extract_license_plate(vehicle)
