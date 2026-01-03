@@ -37,15 +37,25 @@ if DATABASE_URL and DATABASE_URL.strip() and DATABASE_URL.startswith(('postgresq
     USE_SQLITE = False
     
     try:
-        # Render PostgreSQL SSL - use "prefer" for better compatibility
+        # Check if URL already has SSL mode parameter
+        has_sslmode_in_url = '?sslmode=' in DATABASE_URL or '&sslmode=' in DATABASE_URL
+        
+        # Prepare connection arguments
+        # Don't override sslmode if it's already in the URL
         connect_args = {
-            "sslmode": "prefer",  # More compatible than "require"
             "connect_timeout": 30,
             "keepalives": 1,
             "keepalives_idle": 30,
             "keepalives_interval": 10,
             "keepalives_count": 5
         }
+        
+        # Only add sslmode if not in URL
+        if not has_sslmode_in_url:
+            connect_args["sslmode"] = "prefer"
+            print("   → Using sslmode: prefer (from config)")
+        else:
+            print("   → Using sslmode from URL")
         
         engine = create_engine(
             DATABASE_URL,
