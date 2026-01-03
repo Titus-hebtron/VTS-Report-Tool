@@ -19,7 +19,20 @@ sqlite3.register_adapter(datetime, adapt_datetime)
 # Use PostgreSQL if DATABASE_URL is set (production/Render), otherwise SQLite (development)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Debug: Log DATABASE_URL status (without exposing credentials)
 if DATABASE_URL:
+    if not DATABASE_URL.strip():
+        print("⚠️  DATABASE_URL is set but empty - using SQLite")
+    elif not DATABASE_URL.startswith(('postgresql://', 'postgres://')):
+        print(f"⚠️  DATABASE_URL doesn't start with postgresql:// or postgres:// - using SQLite")
+        print(f"    Starts with: {DATABASE_URL[:20]}...")
+    else:
+        print(f"ℹ️  DATABASE_URL detected: {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else 'localhost'}")
+else:
+    print("ℹ️  No DATABASE_URL set - using SQLite for local development")
+
+# Validate DATABASE_URL is not empty and properly formatted
+if DATABASE_URL and DATABASE_URL.strip() and DATABASE_URL.startswith(('postgresql://', 'postgres://')):
     # Production: Use PostgreSQL from DATABASE_URL with fallback
     USE_SQLITE = False
     
