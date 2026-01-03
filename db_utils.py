@@ -1,3 +1,47 @@
+import os
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
+
+# Fix Render URL for SQLAlchemy
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace(
+        "postgresql://",
+        "postgresql+psycopg2://",
+        1
+    )
+
+# Force SSL (Render requirement)
+if "sslmode=" not in DATABASE_URL:
+    DATABASE_URL += "?sslmode=require"
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+def get_sqlalchemy_engine():
+    return engine
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 # db_utils.py - Cleaned SQLite/PostgreSQL version
 from sqlalchemy import create_engine, text
 import bcrypt
