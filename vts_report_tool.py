@@ -5,7 +5,7 @@ import pandas as pd
 import datetime
 import io
 from sqlalchemy import text
-from db_utils import get_sqlalchemy_engine, get_user, verify_password, get_contractor_id
+from db_utils import get_sqlalchemy_engine, get_user, verify_password, get_contractor_id, get_active_contractor
 from breaks_pickups_page import breaks_pickups_page
 from streamlit_folium import st_folium
 import folium
@@ -593,19 +593,38 @@ if selected_vehicle:
         with engine.begin() as conn:
             # Check if patrol_logs table exists first
             try:
-                patrol_logs = pd.read_sql("""
+                # Try full query including speed column
+                patrol_logs = pd.read_sql(text("""
                     SELECT timestamp, latitude, longitude, activity, speed
                     FROM patrol_logs
-                    WHERE vehicle_id = %s
+                    WHERE vehicle_id = :vehicle_id
                     ORDER BY timestamp DESC
-                """, conn, params=(vehicle_id,))
+                """), conn, params={"vehicle_id": vehicle_id})
             except Exception as e:
-                if "does not exist" in str(e):
-                    st.info(f"Patrol logs table not found. Please ensure database is properly initialized.")
-                    patrol_logs = pd.DataFrame()  # Empty dataframe
+                err = str(e).lower()
+                # If the speed column doesn't exist, retry without it
+                if "no such column" in err or "unknown column" in err or "speed" in err:
+                    try:
+                        patrol_logs = pd.read_sql(text("""
+                            SELECT timestamp, latitude, longitude, activity
+                            FROM patrol_logs
+                            WHERE vehicle_id = :vehicle_id
+                            ORDER BY timestamp DESC
+                        """), conn, params={"vehicle_id": vehicle_id})
+                        # Add speed column with NaN so downstream code can reference it
+                        patrol_logs["speed"] = pd.NA
+                    except Exception as e2:
+                        if "does not exist" in str(e2).lower():
+                            st.info("Patrol logs table not found. Please ensure database is properly initialized.")
+                        else:
+                            st.error(f"Error loading patrol logs: {e2}")
+                        patrol_logs = pd.DataFrame()
                 else:
-                    st.error(f"Error loading patrol logs: {e}")
-                    patrol_logs = pd.DataFrame()  # Empty dataframe
+                    if "does not exist" in err:
+                        st.info("Patrol logs table not found. Please ensure database is properly initialized.")
+                    else:
+                        st.error(f"Error loading patrol logs: {e}")
+                    patrol_logs = pd.DataFrame()
 
         if patrol_logs.empty:
             st.info(f"No patrol logs found for {selected_vehicle}")
@@ -651,9 +670,6 @@ elif role == "control":
                      "Breaks & Pickups", "Search Page", "GPS Tracking", "Real-Time GPS"]
 elif role == "contractor":
     allowed_pages = ["Incident Report", "GPS Tracking", "Real-Time GPS"]
-elif role == "admin":
-    allowed_pages = ["Incident Report", "Idle Time Analyzer", "View Idle Reports",
-                     "Breaks & Pickups", "Search Page", "GPS Tracking", "Real-Time GPS"]
 elif role == "patrol":
     allowed_pages = ["Incident Report", "Breaks & Pickups", "GPS Tracking", "Real-Time GPS"]
 elif role == "re_admin":
@@ -728,10 +744,10 @@ elif page == "Real-Time GPS":
                             WHERE vehicle_id = v.id
                             AND timestamp > datetime('now', '-10 minutes')
                         )
-                    WHERE v.contractor_id = ?
+                    WHERE v.contractor_id = :contractor_id
                     ORDER BY v.contractor, v.plate_number
                 """
-                result = conn.execute(text(vehicles_query), (contractor_id,))
+                result = conn.execute(text(vehicles_query), {"contractor_id": contractor_id})
                 vehicles_data = result.fetchall()
 
                 if vehicles_data:

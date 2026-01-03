@@ -200,12 +200,13 @@ def end_idle_report(report: IdleReportEndRequest, user: dict = Depends(verify_to
 
 @app.get("/incidents")
 def get_incidents(user: dict = Depends(verify_token)):
+    from sqlalchemy import text
     contractor = user["contractor"]
     contractor_id = get_contractor_id(contractor)
     engine = get_sqlalchemy_engine()
-    query = "SELECT * FROM incident_reports WHERE contractor_id = %s ORDER BY incident_date DESC LIMIT 50"
+    query = "SELECT * FROM incident_reports WHERE contractor_id = :contractor_id ORDER BY incident_date DESC LIMIT 50"
     with engine.begin() as conn:
-        incidents = pd.read_sql(query, conn, params=(contractor_id,))
+        incidents = pd.read_sql(text(query), conn, params={"contractor_id": contractor_id})
     return incidents.to_dict(orient="records")
 
 # Add more endpoints as needed for reports

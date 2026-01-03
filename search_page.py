@@ -1,4 +1,5 @@
 import os
+from sqlalchemy import text
 
 def fill_incident_template(ws, row, index):
     from openpyxl.styles import Alignment, Border, Side, Font
@@ -216,8 +217,11 @@ def search_page():
     search_options = ["Accidents", "Incidents", "Breaks", "Pickups"]
     selected_option = st.selectbox("Select data to view", search_options)
 
-    start_date = st.date_input("Start date").strftime('%Y-%m-%d')
-    end_date = st.date_input("End date").strftime('%Y-%m-%d')
+    raw_start = st.date_input("Start date")
+    raw_end = st.date_input("End date")
+    # normalize to YYYY-MM-DD whether input is date or string
+    start_date = pd.to_datetime(raw_start).strftime('%Y-%m-%d')
+    end_date = pd.to_datetime(raw_end).strftime('%Y-%m-%d')
     vehicle = st.text_input("Vehicle (optional)")
 
     if st.button("Search"):
@@ -233,29 +237,29 @@ def search_page():
         # --- 1. CONSTRUCT QUERY AND FETCH MAIN DATA ---
         if selected_option in ["Accidents", "Incidents"]:
             incident_type = "Accident" if selected_option == "Accidents" else "Incident"
-            query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN %s AND %s AND incident_type = %s"
-            params = [start_date, end_date, incident_type]
+            query = "SELECT * FROM incident_reports WHERE incident_date BETWEEN :start_date AND :end_date AND incident_type = :incident_type"
+            params = {"start_date": start_date, "end_date": end_date, "incident_type": incident_type}
 
             if vehicle:
-                query += " AND patrol_car = %s"
-                params.append(vehicle)
+                query += " AND patrol_car = :vehicle"
+                params["vehicle"] = vehicle
 
             contractor = st.session_state.get("contractor")
             if contractor and contractor.lower() in ['wizpro', 'paschal']:
                 contractor_id = 1 if contractor.lower() == 'wizpro' else 2
-                query += " AND contractor_id = %s"
-                params.append(contractor_id)
+                query += " AND contractor_id = :contractor_id"
+                params["contractor_id"] = contractor_id
 
             if st.session_state["role"] == "re_admin":
                 contractor_id = st.session_state.get("active_contractor")
                 if contractor_id:
-                    query += " AND contractor_id = %s"
-                    params.append(contractor_id)
+                    query += " AND contractor_id = :contractor_id"
+                    params["contractor_id"] = contractor_id
 
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
                 with engine.connect() as conn:
-                    df = pd.read_sql_query(query, conn, params=tuple(params))
+                    df = pd.read_sql_query(text(query), conn, params=params)
             except Exception as e:
                 st.error(f"Database error fetching incident data: {e}")
 
@@ -264,8 +268,9 @@ def search_page():
             if not df.empty and 'id' in df.columns: # 'id' is the primary key (PK)
                 report_ids = df['id'].tolist()
 
-                # Handling the IN clause parameters
-                placeholders = ','.join(['%s'] * len(report_ids))
+                # Handling the IN clause parameters - use named binds
+                placeholders = ','.join([f':id_{i}' for i in range(len(report_ids))])
+                image_params = {f'id_{i}': rid for i, rid in enumerate(report_ids)}
 
                 # Query the image table for BLOB data and metadata
                 # Note the change: incident_images table and incident_id column
@@ -274,46 +279,46 @@ def search_page():
                 try:
                     # Fetching the BLOB data is slow but necessary for embedding
                     with engine.connect() as conn:
-                        image_df = pd.read_sql_query(image_query, conn, params=tuple(report_ids))
+                        image_df = pd.read_sql_query(text(image_query), conn, params=image_params)
                     st.success(f"Found {len(df)} reports and {len(image_df)} associated images.")
                 except Exception as e:
                     st.warning(f"Could not fetch image data from incident_images table: {e}. Download will be data-only.")
 
         elif selected_option == "Breaks":
-            query = "SELECT * FROM breaks WHERE break_date BETWEEN %s AND %s"
-            params = [start_date, end_date]
+            query = "SELECT * FROM breaks WHERE break_date BETWEEN :start_date AND :end_date"
+            params = {"start_date": start_date, "end_date": end_date}
             if vehicle:
-                query += " AND vehicle = %s"
-                params.append(vehicle)
+                query += " AND vehicle = :vehicle"
+                params["vehicle"] = vehicle
 
             contractor = st.session_state.get("contractor")
             if contractor and contractor.lower() in ['wizpro', 'paschal']:
                 contractor_id = 1 if contractor.lower() == 'wizpro' else 2
-                query += " AND contractor_id = %s"
-                params.append(contractor_id)
+                query += " AND contractor_id = :contractor_id"
+                params["contractor_id"] = contractor_id
 
             try:
                 with engine.connect() as conn:
-                    df = pd.read_sql_query(query, conn, params=tuple(params))
+                    df = pd.read_sql_query(text(query), conn, params=params)
             except Exception as e:
                 st.error(f"Database error fetching breaks data: {e}")
 
         elif selected_option == "Pickups":
-            query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN %s AND %s"
-            params = [start_date, end_date]
+            query = "SELECT * FROM pickups WHERE DATE(pickup_start) BETWEEN :start_date AND :end_date"
+            params = {"start_date": start_date, "end_date": end_date}
             if vehicle:
-                query += " AND vehicle = %s"
-                params.append(vehicle)
+                query += " AND vehicle = :vehicle"
+                params["vehicle"] = vehicle
 
             contractor = st.session_state.get("contractor")
             if contractor and contractor.lower() in ['wizpro', 'paschal']:
                 contractor_id = 1 if contractor.lower() == 'wizpro' else 2
-                query += " AND contractor_id = %s"
-                params.append(contractor_id)
+                query += " AND contractor_id = :contractor_id"
+                params["contractor_id"] = contractor_id
 
             try:
                 with engine.connect() as conn:
-                    df = pd.read_sql_query(query, conn, params=tuple(params))
+                    df = pd.read_sql_query(text(query), conn, params=params)
             except Exception as e:
                 st.error(f"Database error fetching pickups data: {e}")
 

@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from db_utils import get_sqlalchemy_engine, get_active_contractor
+from sqlalchemy import text
 from datetime import datetime, timedelta
 import time
 from streamlit_folium import folium_static
@@ -64,8 +65,9 @@ def realtime_gps_monitoring_page():
             """
             vehicles_df = pd.read_sql(vehicles_query, engine)
         except Exception as e:
+            err = str(e).lower()
             # If patrol_logs table doesn't exist, show vehicles without GPS data
-            if "does not exist" in str(e) or "UndefinedTable" in str(e):
+            if "does not exist" in err or "undefinedtable" in err:
                 vehicles_query = """
                     SELECT
                         v.id,
@@ -78,6 +80,31 @@ def realtime_gps_monitoring_page():
                         'offline' as status
                     FROM vehicles v
                     JOIN contractors c ON v.contractor = c.name
+                    WHERE c.name IN ('Wizpro', 'Paschal', 'Avators')
+                    ORDER BY c.name, v.plate_number
+                """
+                vehicles_df = pd.read_sql(vehicles_query, engine)
+            elif 'no such column' in err or 'unknown column' in err or 'status' in err or 'activity' in err:
+                # Retry without referencing latest_gps.status which may not exist in older schemas
+                vehicles_query = """
+                    SELECT
+                        v.id,
+                        v.plate_number,
+                        c.name as contractor_name,
+                        COALESCE(latest_gps.latitude, -1.2921) as latitude,
+                        COALESCE(latest_gps.longitude, 36.8219) as longitude,
+                        latest_gps.timestamp as last_update,
+                        COALESCE(latest_gps.activity, 'stationary') as activity,
+                        'offline' as status
+                    FROM vehicles v
+                    JOIN contractors c ON v.contractor = c.name
+                    LEFT JOIN patrol_logs latest_gps ON latest_gps.vehicle_id = v.id
+                        AND latest_gps.timestamp = (
+                            SELECT MAX(timestamp)
+                            FROM patrol_logs
+                            WHERE vehicle_id = v.id
+                            AND timestamp > datetime('now', '-24 hours')
+                        )
                     WHERE c.name IN ('Wizpro', 'Paschal', 'Avators')
                     ORDER BY c.name, v.plate_number
                 """
@@ -105,13 +132,14 @@ def realtime_gps_monitoring_page():
                         WHERE vehicle_id = v.id
                         AND timestamp > datetime('now', '-24 hours')  -- Extended to 24 hours
                     )
-                WHERE v.contractor = (SELECT name FROM contractors WHERE id = %s)
+                WHERE v.contractor = (SELECT name FROM contractors WHERE id = :contractor_id)
                 ORDER BY v.plate_number
             """
-            vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+            vehicles_df = pd.read_sql(text(vehicles_query), engine, params={"contractor_id": contractor_id})
         except Exception as e:
+            err = str(e).lower()
             # If patrol_logs table doesn't exist, show vehicles without GPS data
-            if "does not exist" in str(e) or "UndefinedTable" in str(e):
+            if "does not exist" in err or "undefinedtable" in err:
                 vehicles_query = """
                     SELECT
                         v.id,
@@ -122,10 +150,32 @@ def realtime_gps_monitoring_page():
                         'stationary' as activity,
                         'offline' as status
                     FROM vehicles v
-                    WHERE v.contractor = (SELECT name FROM contractors WHERE id = %s)
+                    WHERE v.contractor = (SELECT name FROM contractors WHERE id = :contractor_id)
                     ORDER BY v.plate_number
                 """
-                vehicles_df = pd.read_sql(vehicles_query, engine, params=(contractor_id,))
+                vehicles_df = pd.read_sql(text(vehicles_query), engine, params={"contractor_id": contractor_id})
+            elif 'no such column' in err or 'unknown column' in err or 'status' in err or 'activity' in err:
+                vehicles_query = """
+                    SELECT
+                        v.id,
+                        v.plate_number,
+                        COALESCE(latest_gps.latitude, -1.2921) as latitude,
+                        COALESCE(latest_gps.longitude, 36.8219) as longitude,
+                        latest_gps.timestamp as last_update,
+                        COALESCE(latest_gps.activity, 'stationary') as activity,
+                        'offline' as status
+                    FROM vehicles v
+                    LEFT JOIN patrol_logs latest_gps ON latest_gps.vehicle_id = v.id
+                        AND latest_gps.timestamp = (
+                            SELECT MAX(timestamp)
+                            FROM patrol_logs
+                            WHERE vehicle_id = v.id
+                            AND timestamp > datetime('now', '-24 hours')
+                        )
+                    WHERE v.contractor = (SELECT name FROM contractors WHERE id = :contractor_id)
+                    ORDER BY v.plate_number
+                """
+                vehicles_df = pd.read_sql(text(vehicles_query), engine, params={"contractor_id": contractor_id})
             else:
                 raise e
 

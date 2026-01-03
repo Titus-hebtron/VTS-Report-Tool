@@ -49,7 +49,10 @@ def backup_management_page():
                 try:
                     timestamp_str = filename.replace("vts_database_backup_", "").replace(".db", "")
                     backup_date = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                    file_size = os.path.getsize(db_file) / (1024 * 1024)  # MB
+                    if os.path.exists(db_file):
+                        file_size = os.path.getsize(db_file) / (1024 * 1024)  # MB
+                    else:
+                        file_size = 0
                     backup_info.append({
                         "Type": "Database",
                         "Filename": filename,
@@ -58,8 +61,10 @@ def backup_management_page():
                         "Size (MB)": round(file_size, 2),
                         "Path": db_file
                     })
-                except Exception as e:
+                except ValueError as ve:
                     st.warning(f"Could not parse database backup filename: {filename}")
+                except Exception as e:
+                    st.error(f"Error processing backup file {filename}: {str(e)}")
 
             # Process image backups
             for img_file in image_backups:
@@ -67,7 +72,10 @@ def backup_management_page():
                 try:
                     timestamp_str = filename.replace("uploaded_images_backup_", "").replace(".zip", "")
                     backup_date = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                    file_size = os.path.getsize(img_file) / (1024 * 1024)  # MB
+                    if os.path.exists(img_file):
+                        file_size = os.path.getsize(img_file) / (1024 * 1024)  # MB
+                    else:
+                        file_size = 0
                     backup_info.append({
                         "Type": "Images",
                         "Filename": filename,
@@ -76,8 +84,10 @@ def backup_management_page():
                         "Size (MB)": round(file_size, 2),
                         "Path": img_file
                     })
-                except Exception as e:
+                except ValueError as ve:
                     st.warning(f"Could not parse image backup filename: {filename}")
+                except Exception as e:
+                    st.error(f"Error processing backup file {filename}: {str(e)}")
 
             if backup_info:
                 # Sort by date (newest first)
@@ -263,7 +273,7 @@ def backup_management_page():
                         # Import backup functions directly to avoid subprocess issues
                         import sqlite3
                         import shutil
-                        import datetime
+                        import datetime as dt
                         import zipfile
                         import io
 
@@ -276,7 +286,7 @@ def backup_management_page():
                         os.makedirs(BACKUP_DIR, exist_ok=True)
 
                         # Generate backup filename
-                        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                        timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
 
                         # Database backup
                         if os.path.exists(DB_PATH):
@@ -335,7 +345,7 @@ def backup_management_page():
                         # Import backup functions from backup_script.py
                         import sqlite3
                         import shutil
-                        import datetime
+                        import datetime as dt
                         import zipfile
                         import io
                         import smtplib
@@ -367,7 +377,7 @@ def backup_management_page():
                         os.makedirs(BACKUP_DIR, exist_ok=True)
 
                         # Generate backup filename
-                        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                        timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
 
                         # Database backup
                         if os.path.exists(DB_PATH):
@@ -405,8 +415,27 @@ def backup_management_page():
                             if creds and creds.expired and creds.refresh_token:
                                 creds.refresh(Request())
                             else:
-                                st.error("Google Drive authentication not set up. Please run backup_script.py first.")
-                                raise Exception("Google Drive authentication not set up")
+                                st.warning("⚠️ Google Drive authentication not configured")
+                                st.info("""
+**To enable Google Drive backups:**
+
+1. Download `credentials.json` from Google Cloud Console:
+   - Go to https://console.cloud.google.com/
+   - Create a project or select existing one
+   - Enable Google Drive API
+   - Create OAuth 2.0 credentials (Desktop app type)
+   - Download credentials and save as `credentials.json` in this directory
+
+2. Run the authentication script (one time only):
+   ```
+   python backup_script.py --auth
+   ```
+
+3. Local backups are still working - use "Run Local Backup Only" button above
+
+For now, your backups are saved locally in the `backups/` folder.
+                                """)
+                                raise Exception("Google Drive not authenticated. See instructions above.")
 
                         service = build('drive', 'v3', credentials=creds)
 
@@ -471,7 +500,7 @@ Backup Details:
 - Database backup: {os.path.basename(db_path)}
 - Images backup: {os.path.basename(images_backup) if images_backup else 'No images to backup'}
 - Google Drive Folder ID: {folder_id}
-- Backup Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+- Backup Time: {dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Files have been uploaded to Google Drive and are available for download.
 """
@@ -491,7 +520,7 @@ Files have been uploaded to Google Drive and are available for download.
 
                         # Record the backup time
                         with open("last_manual_gdrive_backup.txt", 'w') as f:
-                            f.write(datetime.datetime.now().isoformat())
+                            f.write(dt.datetime.now().isoformat())
 
                         st.success("✅ Full backup to Google Drive completed successfully!")
                         st.info("Backups are stored locally and uploaded to Google Drive with email notifications.")
