@@ -4,6 +4,7 @@ import uuid
 import datetime
 from typing import List
 from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 # dynamic import of python-dotenv to avoid static editor/lint errors when not installed
 try:
@@ -22,6 +23,22 @@ AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 EVENT_STORE_FILE = os.getenv("EVENT_STORE_FILE", "events_store.json")
 
 app = FastAPI(title="VTS Backend - Presign & Batch Ingest")
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Vite default port
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include API routes
+try:
+    from backend.api_routes import router as api_router
+    app.include_router(api_router, prefix="/api")
+except ImportError:
+    print("Warning: Could not import API routes. Auth endpoints may not be available.")
 
 def verify_token(authorization: str = Header(None)):
     if not authorization:

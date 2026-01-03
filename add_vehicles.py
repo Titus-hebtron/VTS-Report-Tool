@@ -1,57 +1,51 @@
 #!/usr/bin/env python3
 """
-Add sample vehicles to the database
+Add/Update vehicles to the database
+This script ensures the correct patrol cars are in the system:
+- 3 Wizpro patrol cars
+- 2 Paschal patrol cars  
+- 3 Avators patrol cars
+- 2 Recovery/Backup vehicles
 """
-from db_utils import get_sqlalchemy_engine
+from db_utils import get_sqlalchemy_engine, USE_SQLITE
 from sqlalchemy import text
 
-def add_sample_vehicles():
+def add_or_update_vehicles():
+    """
+    Add or update vehicles in the database.
+    This ensures we have the correct set of patrol cars and prevents duplicates.
+    """
     engine = get_sqlalchemy_engine()
-
-    from db_utils import USE_SQLITE
     
-    # Note: The patrol cars being monitored through GPRS are the five vehicles from the two contractors:
-    # Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car)
-    # The recovery cars serve as additional slots for backup vehicles
+    # Define the official vehicle list as per requirements
+    # Total: 3 Wizpro + 2 Paschal + 3 Avators + 2 Recovery = 10 patrol cars
     vehicles = [
-        # Wizpro vehicles
-        ('KDG 320Z', 'Wizpro'),
-        ('KDS 374F', 'Wizpro'),
-        ('KDK 825Y', 'Wizpro'),
-        ('Replacement Car', 'Wizpro'),
-        ('Backup Vehicle', 'Wizpro'),
+        # Wizpro patrol cars (3 vehicles)
+        ('Wizpro Patrol 1', 'Wizpro'),
+        ('Wizpro Patrol 2', 'Wizpro'),
+        ('Wizpro Patrol 3', 'Wizpro'),
 
-        # Paschal vehicles
-        ('KDC 873G', 'Paschal'),
-        ('KDD 500X', 'Paschal'),
-        ('Replacement Car', 'Paschal'),
-        ('Backup Vehicle', 'Paschal'),
+        # Paschal patrol cars (2 vehicles)
+        ('Paschal Patrol 1', 'Paschal'),
+        ('Paschal Patrol 2', 'Paschal'),
 
-        # Avators vehicles
-        ('KAV 444A', 'Avators'),
-        ('KAV 555A', 'Avators'),
-        ('KAV 666A', 'Avators'),
-        ('Replacement Car', 'Avators'),
+        # Avators patrol cars (3 vehicles)
+        ('Avators Patrol 1', 'Avators'),
+        ('Avators Patrol 2', 'Avators'),
+        ('Avators Patrol 3', 'Avators'),
 
-        # Patrol vehicles for GPS tracking (mapping to actual vehicle plates)
-        # Wizpro mappings:
-        # Patrol_1 = KP1 = KDK 825Y
-        # Patrol_2 = KP2 = KDS 374F
-        # Patrol_3 = KP3 = KDG 320Z
-        ('Patrol_1 (KP1 - KDK 825Y)', 'Wizpro'),
-        ('Patrol_2 (KP2 - KDS 374F)', 'Wizpro'),
-        ('Patrol_3 (KP3 - KDG 320Z)', 'Wizpro'),
-
-        # Paschal mappings:
-        # Patrol_1 = KP1 = KDD 500X
-        # Patrol_2 = KP2 = KDC 873G
-        ('Patrol_1 (KP1 - KDD 500X)', 'Paschal'),
-        ('Patrol_2 (KP2 - KDC 873G)', 'Paschal'),
+        # Recovery/Backup vehicles (2 vehicles - shared across contractors)
+        ('Recovery Vehicle 1', 'RE Office'),
+        ('Recovery Vehicle 2', 'RE Office'),
     ]
 
+    print("Setting up patrol vehicles in database...")
+    print(f"Total vehicles to configure: {len(vehicles)}")
+    
     with engine.begin() as conn:
         for plate_number, contractor in vehicles:
             if USE_SQLITE:
+                # For SQLite, use INSERT OR IGNORE to prevent duplicates
                 conn.execute(text("""
                     INSERT OR IGNORE INTO vehicles (plate_number, contractor)
                     VALUES (:plate_number, :contractor)
@@ -60,16 +54,61 @@ def add_sample_vehicles():
                     "contractor": contractor
                 })
             else:
+                # For PostgreSQL, use ON CONFLICT DO NOTHING
                 conn.execute(text("""
                     INSERT INTO vehicles (plate_number, contractor)
                     VALUES (:plate_number, :contractor)
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT (plate_number) DO NOTHING
                 """), {
                     "plate_number": plate_number,
                     "contractor": contractor
                 })
+            print(f"  ✓ {plate_number} ({contractor})")
 
-    print("Sample vehicles added successfully!")
+    print("\n✅ Patrol vehicles configured successfully!")
+    print("\nVehicle Summary:")
+    print("  - Wizpro: 3 patrol cars")
+    print("  - Paschal: 2 patrol cars")
+    print("  - Avators: 3 patrol cars")
+    print("  - Recovery/Backup: 2 vehicles")
+    print("  - Total: 10 patrol cars")
+
+def show_current_vehicles():
+    """Display current vehicles in the database"""
+    engine = get_sqlalchemy_engine()
+    
+    print("\n" + "="*60)
+    print("CURRENT VEHICLES IN DATABASE")
+    print("="*60)
+    
+    with engine.begin() as conn:
+        result = conn.execute(text("""
+            SELECT plate_number, contractor, 
+                   CASE WHEN gps_tracking_enabled THEN 'Active' ELSE 'Inactive' END as gps_status
+            FROM vehicles
+            ORDER BY contractor, plate_number
+        """))
+        
+        vehicles = result.fetchall()
+        
+        if not vehicles:
+            print("No vehicles found in database.")
+            return
+        
+        current_contractor = None
+        for plate, contractor, gps_status in vehicles:
+            if contractor != current_contractor:
+                print(f"\n{contractor}:")
+                current_contractor = contractor
+            print(f"  • {plate} (GPS: {gps_status})")
+        
+        print(f"\nTotal vehicles: {len(vehicles)}")
 
 if __name__ == "__main__":
-    add_sample_vehicles()
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "--show":
+        show_current_vehicles()
+    else:
+        add_or_update_vehicles()
+        show_current_vehicles()

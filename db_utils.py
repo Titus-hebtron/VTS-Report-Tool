@@ -20,9 +20,41 @@ sqlite3.register_adapter(datetime, adapt_datetime)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 if DATABASE_URL:
-    # Production: Use PostgreSQL from DATABASE_URL
+    # Production: Use PostgreSQL from DATABASE_URL with fallback
     USE_SQLITE = False
-    engine = create_engine(DATABASE_URL)
+    
+    try:
+        # Render PostgreSQL SSL - use "prefer" for better compatibility
+        connect_args = {
+            "sslmode": "prefer",  # More compatible than "require"
+            "connect_timeout": 30,
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5
+        }
+        
+        engine = create_engine(
+            DATABASE_URL,
+            connect_args=connect_args,
+            pool_size=3,
+            max_overflow=7,
+            pool_pre_ping=True,
+            pool_recycle=3600,
+            pool_timeout=30,
+            echo=False
+        )
+        
+        # Test connection
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        print("✅ PostgreSQL connected")
+        
+    except Exception as e:
+        print(f"⚠️  PostgreSQL failed: {e}")
+        print("🔄 Using SQLite instead")
+        USE_SQLITE = True
+        engine = create_engine("sqlite:///vts_database.db", connect_args={"check_same_thread": False})
 else:
     # Development: Use SQLite
     USE_SQLITE = True

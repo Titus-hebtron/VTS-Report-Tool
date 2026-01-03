@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS contractors (
 -- Vehicles table
 CREATE TABLE IF NOT EXISTS vehicles (
     id SERIAL PRIMARY KEY,
-    plate_number TEXT NOT NULL,
+    plate_number TEXT NOT NULL UNIQUE,
     contractor TEXT NOT NULL,
     gps_tracking_enabled BOOLEAN DEFAULT FALSE,
     gps_tracking_activated_at TIMESTAMP,

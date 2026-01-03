@@ -471,14 +471,16 @@ def patrol_car_management_section():
         """
         vehicles_df = pd.read_sql_query(text(query), engine)
 
-        # Display statistics
+        # Display statistics - only count actual patrol vehicles (those with 'Patrol' in name)
+        patrol_vehicles_df = vehicles_df[vehicles_df['plate_number'].str.contains('Patrol', case=False, na=False)]
+
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Patrol Cars", len(vehicles_df))
+            st.metric("Total Patrol Cars", len(patrol_vehicles_df))
         with col2:
-            st.metric("Active Contractors", vehicles_df['contractor'].nunique())
+            st.metric("Active Contractors", patrol_vehicles_df['contractor'].nunique())
         with col3:
-            st.metric("Total Incidents", vehicles_df['incident_count'].sum())
+            st.metric("Total Incidents", patrol_vehicles_df['incident_count'].sum())
 
         st.markdown("---")
 
@@ -513,11 +515,12 @@ def patrol_car_management_section():
         if contractor_filter != "All Contractors":
             filtered_df = filtered_df[filtered_df['contractor'] == contractor_filter]
 
-        # Display vehicles
-        st.subheader(f"🚗 Patrol Cars ({len(filtered_df)})")
+        # Display vehicles - filter to show only patrol vehicles
+        patrol_filtered_df = filtered_df[filtered_df['plate_number'].str.contains('Patrol', case=False, na=False)]
+        st.subheader(f"🚗 Patrol Cars ({len(patrol_filtered_df)})")
 
-        if len(filtered_df) > 0:
-            for idx, vehicle in filtered_df.iterrows():
+        if len(patrol_filtered_df) > 0:
+            for idx, vehicle in patrol_filtered_df.iterrows():
                 with st.container():
                     col1, col2, col3, col4, col5, col6 = st.columns([3, 2, 2, 2, 2, 1])
 
@@ -572,6 +575,8 @@ def patrol_car_management_section():
                 st.markdown("---")
         else:
             st.info("No patrol cars found matching the filters.")
+            # Show total vehicles count for reference
+            st.write(f"**Total vehicles in database:** {len(filtered_df)} (including non-patrol vehicles)")
 
     except Exception as e:
         st.error(f"Error loading patrol cars: {e}")
