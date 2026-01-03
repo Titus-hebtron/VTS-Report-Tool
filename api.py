@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from jose import jwt
 import bcrypt
 from datetime import datetime, timedelta
-from db_utils import get_sqlalchemy_engine, get_contractor_id, init_database
+from db_utils import get_sqlalchemy_engine, init_database
+from auth_utils import get_contractor_id
 from sqlalchemy import text
 import pandas as pd
 

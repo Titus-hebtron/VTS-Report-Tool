@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from db_utils import get_sqlalchemy_engine, get_active_contractor
+from db_utils import get_sqlalchemy_engine
+from auth_utils import get_active_contractor
 from sqlalchemy import text
 from datetime import datetime, timedelta
 import time

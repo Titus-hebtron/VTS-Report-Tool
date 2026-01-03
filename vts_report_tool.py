@@ -5,7 +5,8 @@ import pandas as pd
 import datetime
 import io
 from sqlalchemy import text
-from db_utils import get_sqlalchemy_engine, get_user, verify_password, get_contractor_id, get_active_contractor
+from db_utils import get_sqlalchemy_engine
+from auth_utils import get_user, verify_password, get_contractor_id, get_active_contractor
 from breaks_pickups_page import breaks_pickups_page
 from streamlit_folium import st_folium
 import folium

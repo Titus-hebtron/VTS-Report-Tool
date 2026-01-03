@@ -2,7 +2,8 @@ import streamlit as st
 import folium
 from streamlit_folium import folium_static
 import pandas as pd
-from db_utils import get_sqlalchemy_engine, get_active_contractor
+from db_utils import get_sqlalchemy_engine
+from auth_utils import get_active_contractor
 from datetime import datetime, timedelta
 from sqlalchemy import text
 import time

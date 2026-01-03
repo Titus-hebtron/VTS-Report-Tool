@@ -19,6 +19,9 @@ if DATABASE_URL.startswith("postgresql://"):
 if "sslmode=" not in DATABASE_URL:
     DATABASE_URL += "?sslmode=require"
 
+# Determine if using SQLite
+USE_SQLITE = "sqlite" in DATABASE_URL.lower()
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
@@ -42,6 +45,65 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def init_database():
+    """Initialize database tables if they don't exist."""
+    from sqlalchemy import inspect
+    from datetime import datetime
+    import bcrypt
+    
+    print("Checking database initialization...")
+    
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        
+        if 'users' not in tables:
+            print("Creating database tables...")
+            with open("schema.sql", "r") as f:
+                sql = f.read()
+            
+            # Execute schema
+            with engine.begin() as conn:
+                statements = [s.strip() for s in sql.split(";") if s.strip() and not s.startswith("--")]
+                for stmt in statements:
+                    conn.execute(text(stmt))
+            
+            print("Tables created successfully!")
+            
+            # Add default users
+            default_users = [
+                ('admin', 'Pass@12345', 'Administrator', 3, 're_admin'),
+                ('wizpro_admin', 'Pass@12345', 'Wizpro Admin', 1, 'admin'),
+                ('paschal_admin', 'Pass@12345', 'Paschal Admin', 2, 'admin'),
+                ('wizpro_user', 'Pass@12345', 'Wizpro User', 1, 'contractor'),
+                ('paschal_user', 'Pass@12345', 'Paschal User', 2, 'contractor'),
+                ('avators_user', 'Pass@12345', 'Avators User', 4, 'contractor'),
+                ('patrol_officer_1', 'Pass@12345', 'Patrol Officer 1', 1, 'patrol'),
+                ('patrol_officer_2', 'Pass@12345', 'Patrol Officer 2', 1, 'patrol'),
+                ('patrol_officer_3', 'Pass@12345', 'Patrol Officer 3', 1, 'patrol'),
+            ]
+            
+            with engine.begin() as conn:
+                for username, pwd, name, cid, role in default_users:
+                    hashed = bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode()
+                    conn.execute(
+                        text("""INSERT INTO users
+                            (username, password_hash, role, contractor_id)
+                            VALUES (:username, :password_hash, :role, :contractor_id)
+                            ON CONFLICT (username) DO NOTHING
+                        """),
+                        {"username": username, "password_hash": hashed, "role": role, "contractor_id": cid}
+                    )
+            print("Default users added!")
+        else:
+            print("Database tables already exist")
+        
+        print("✅ Database initialization completed successfully")
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
+        raise
 # db_utils.py - Cleaned SQLite/PostgreSQL version
 from sqlalchemy import create_engine, text
 import bcrypt

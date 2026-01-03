@@ -1,4 +1,4 @@
-from db_utils import add_user
+from auth_utils import add_user
 
 # Add users for different contractors
 # Wizpro (id=1), Paschal (id=2), RE Office (id=3), Avators (id=4)

@@ -119,7 +119,7 @@ def breaks_pickups_page():
 
         break_submit = st.form_submit_button("Save Break")
         if break_submit:
-            from db_utils import get_contractor_id
+            from auth_utils import get_contractor_id
             contractor_id = get_contractor_id(contractor)
 
             engine = get_sqlalchemy_engine()
@@ -164,7 +164,7 @@ def breaks_pickups_page():
 
         pickup_submit = st.form_submit_button("Save Pickup")
         if pickup_submit:
-            from db_utils import get_contractor_id
+            from auth_utils import get_contractor_id
             contractor_id = get_contractor_id(contractor)
 
             engine = get_sqlalchemy_engine()
@@ -224,7 +224,7 @@ def breaks_pickups_page():
     if st.button("🔍 View Combined Report"):
         engine = get_sqlalchemy_engine()
 
-        from db_utils import get_contractor_id
+        from auth_utils import get_contractor_id
         contractor_id = get_contractor_id(contractor)
 
         # Use named parameters for better compatibility

@@ -661,7 +661,8 @@ def report_search_page():
 def search_page():
     import streamlit as st
     import pandas as pd
-    from db_utils import get_sqlalchemy_engine, get_contractor_name, get_active_contractor
+    from db_utils import get_sqlalchemy_engine
+    from auth_utils import get_contractor_name, get_active_contractor
 
     st.header("🔍 Search & View Data")
 
