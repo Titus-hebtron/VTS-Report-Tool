@@ -14,7 +14,7 @@ def adapt_datetime(dt):
 sqlite3.register_adapter(datetime, adapt_datetime)
 
 # ------------------- DATABASE CONFIG -------------------
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL") or ""
 USE_SQLITE = True
 
 if DATABASE_URL:
@@ -23,6 +23,9 @@ if DATABASE_URL:
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     if DATABASE_URL.startswith("postgresql://"):
         USE_SQLITE = False
+else:
+    # Ensure DATABASE_URL is a string (avoid passing None to SQLAlchemy)
+    DATABASE_URL = ""
 
 # ------------------- ENGINE CREATION (ONLY ONCE) -------------------
 def create_db_engine():
