@@ -7,6 +7,8 @@ from datetime import datetime
 import os
 import sqlite3
 import traceback
+import urllib.parse
+from sqlalchemy.exc import ArgumentError
 
 # ------------------- SQLITE DATETIME ADAPTER -------------------
 def adapt_datetime(dt):
@@ -26,6 +28,37 @@ if DATABASE_URL:
 else:
     # Ensure DATABASE_URL is a string (avoid passing None to SQLAlchemy)
     DATABASE_URL = ""
+
+
+def _mask_db_url(url: str) -> str:
+    """Return a masked version of the DB URL suitable for logging.
+
+    - For SQLite, return the path (no credentials present).
+    - For URLs with credentials, mask the password portion.
+    - If empty or unparsable, return a short placeholder.
+    """
+    if not url:
+        return "(empty)"
+    try:
+        if url.startswith("sqlite"):
+            return url
+        p = urllib.parse.urlparse(url)
+        username = p.username or ""
+        hostname = p.hostname or ""
+        port = f":{p.port}" if p.port else ""
+        path = p.path or ""
+        if username:
+            masked = f"{p.scheme}://{username}:****@{hostname}{port}{path}"
+        else:
+            masked = f"{p.scheme}://{hostname}{port}{path}"
+        return masked
+    except Exception:
+        # Fallback: don't leak full value
+        return (url[:30] + "...") if len(url) > 30 else url
+
+
+# Print masked DATABASE_URL at startup to aid debugging (safe to log)
+print(f"DATABASE_URL (masked): {_mask_db_url(DATABASE_URL)} | USE_SQLITE={USE_SQLITE}")
 
 # ------------------- ENGINE CREATION (ONLY ONCE) -------------------
 def create_db_engine():
@@ -74,7 +107,14 @@ def create_db_engine():
         return engine
         
     except Exception as e:
-        print(f"⚠️  PostgreSQL connection failed: {e}")
+        err_str = str(e)
+        # If SQLAlchemy couldn't parse the URL, print masked value and guidance
+        if isinstance(e, ArgumentError) or "Could not parse SQLAlchemy URL" in err_str:
+            print(f"❌ Invalid DATABASE_URL provided: {_mask_db_url(DATABASE_URL)}")
+            print("Please set a valid SQLAlchemy DATABASE_URL (e.g. postgresql://user:pass@host:port/dbname) or leave unset to use local SQLite.")
+        else:
+            print(f"⚠️  PostgreSQL connection failed: {e}")
+
         print("🔄 Falling back to SQLite for local operation")
         # Fall back to SQLite if PostgreSQL fails
         USE_SQLITE = True
