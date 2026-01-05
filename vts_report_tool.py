@@ -128,7 +128,8 @@ if ('serviceWorker' in navigator) {
 
 # Logo & Title
 if os.path.exists("Kenhalogo.png"):
-    st.image("Kenhalogo.png", width=300)
+    # Large logo stretched across the page for visual impact
+    st.image("Kenhalogo.png", width=1400)
 st.markdown("<h1 style='text-align: center; color: #004080;'>VTS REPORT TOOL</h1>", unsafe_allow_html=True)
 st.markdown("<hr style='border:2px solid #004080'>", unsafe_allow_html=True)
 

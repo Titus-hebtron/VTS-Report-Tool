@@ -834,62 +834,56 @@ def incident_report_page(patrol_vehicle_options=None):
             st.markdown(f"**Viewing images for Incident ID: {display_id}**")
             images_meta = get_incident_images(selected_id, only_meta=True)  # only metadata
             if images_meta:
-                img_name = st.selectbox("Select Image", [img["image_name"] for img in images_meta])
-                if st.button("View Selected Image"):
-                    images = get_incident_images(selected_id)
-                    selected_img = next(img for img in images if img["image_name"] == img_name)
-                    # Ensure image_data is proper bytes for Streamlit
-                    image_bytes = selected_img["image_data"]
-                    if isinstance(image_bytes, memoryview):
-                        image_bytes = bytes(image_bytes)
-                    elif not isinstance(image_bytes, bytes):
-                        image_bytes = bytes(image_bytes)
+                img_names = [img["image_name"] for img in images_meta]
+                img_name = st.selectbox("Select Image", img_names)
 
-                    # Validate that we have valid image data before displaying
-                    try:
-                        # First try to display as-is (for properly saved images)
-                        st.image(image_bytes, caption=f"{img_name} (Incident ID: {display_id})", width=800)
-                    except Exception as e:
-                        st.warning(f"⚠️ Could not display image directly, trying normalization: {e}")
-                        try:
-                            # If direct display fails, try normalizing
-                            normalized_image_bytes = _normalize_image(image_bytes)
-                            st.image(normalized_image_bytes, caption=f"{img_name} (normalized) - Incident ID: {selected_id}", width=800)
-                        except Exception as norm_e:
-                            st.error(f"❌ Invalid image data for {img_name}: {norm_e}")
-                            st.info("This image file appears to be corrupted or in an unsupported format.")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button("View Selected Image", key=f"view_{selected_id}"):
+                        images = get_incident_images(selected_id)
+                        selected_img = next((img for img in images if img["image_name"] == img_name), None)
+                        if not selected_img:
+                            st.error("Selected image not found.")
+                        else:
+                            # Ensure image_data is proper bytes for Streamlit
+                            image_bytes = selected_img["image_data"]
+                            if isinstance(image_bytes, memoryview):
+                                image_bytes = bytes(image_bytes)
+                            elif not isinstance(image_bytes, bytes):
+                                image_bytes = bytes(image_bytes)
 
-                            # Show hex dump for debugging
-                            if len(image_bytes) < 100:
-                                st.code(f"First {len(image_bytes)} bytes: {image_bytes.hex()}")
-                            else:
-                                st.code(f"First 100 bytes: {image_bytes[:100].hex()}")
-
-                            # Check if this is hex-encoded data that needs decoding
-                            if isinstance(image_bytes, bytes) and len(image_bytes) > 0:
+                            # Try displaying the image, with normalization fallback
+                            try:
+                                st.image(image_bytes, caption=f"{img_name} (Incident ID: {display_id})", width=800)
+                            except Exception as e:
+                                st.warning(f"⚠️ Could not display image directly, trying normalization: {e}")
                                 try:
-                                    # Try to decode as hex string
-                                    hex_string = image_bytes.decode('utf-8', errors='ignore').strip()
-                                    if all(c in '0123456789abcdefABCDEF' for c in hex_string) and len(hex_string) > 100:
-                                        st.info("This looks like hex-encoded image data. Attempting to decode:")
-                                        try:
-                                            decoded_bytes = bytes.fromhex(hex_string)
-                                            st.code(f"Decoded to {len(decoded_bytes)} bytes")
-                                            # Try to display the decoded image
-                                            try:
-                                                normalized_decoded = _normalize_image(decoded_bytes)
-                                                st.success("✅ Successfully decoded and normalized hex data! Displaying:")
-                                                st.image(normalized_decoded, caption=f"{img_name} (hex-decoded) - Incident ID: {display_id}", width=800)
-                                                # Successfully displayed, skip further error processing
-                                                st.stop()
-                                            except Exception as decode_e:
-                                                st.error(f"❌ Hex-decoded data is not a valid image: {decode_e}")
-                                        except Exception as hex_e:
-                                            st.error(f"❌ Could not decode hex data: {hex_e}")
-                                    else:
-                                        st.info("Data doesn't appear to be hex-encoded.")
-                                except Exception as text_e:
-                                    st.error(f"❌ Could not process as text: {text_e}")
+                                    normalized_image_bytes = _normalize_image(image_bytes)
+                                    st.image(normalized_image_bytes, caption=f"{img_name} (normalized) - Incident ID: {selected_id}", width=800)
+                                except Exception as norm_e:
+                                    st.error(f"❌ Invalid image data for {img_name}: {norm_e}")
+                                    st.info("This image file appears to be corrupted or in an unsupported format.")
+
+                with col2:
+                    if st.button("View All Images", key=f"view_all_{selected_id}"):
+                        images = get_incident_images(selected_id)
+                        if not images:
+                            st.info("No images uploaded for this incident.")
+                        else:
+                            for img in images:
+                                img_bytes = img.get("image_data")
+                                if isinstance(img_bytes, memoryview):
+                                    img_bytes = bytes(img_bytes)
+                                elif not isinstance(img_bytes, bytes):
+                                    img_bytes = bytes(img_bytes)
+                                try:
+                                    st.image(img_bytes, caption=f"{img.get('image_name')} (Incident ID: {display_id})", width=800)
+                                except Exception:
+                                    try:
+                                        normalized_decoded = _normalize_image(img_bytes)
+                                        st.image(normalized_decoded, caption=f"{img.get('image_name')} (normalized) - Incident ID: {display_id}", width=800)
+                                    except Exception as final_e:
+                                        st.error(f"Could not display image {img.get('image_name')}: {final_e}")
                     else:
                         st.info("No images uploaded for this incident.")
         else:
