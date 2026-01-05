@@ -445,6 +445,101 @@ def save_incident_with_images(data, uploaded_by="Unknown", image_files=None):
 
     return report_id
 
+
+# ------------------- DEFAULT USER SEEDING -------------------
+def seed_default_users(force: bool = False):
+    """Insert or (optionally) force-update default users into the `users` table.
+
+    - If `force` is False this will insert users but skip existing ones.
+    - If `force` is True this will upsert (update existing passwords/roles/contractor_id).
+    """
+    default_users = [
+        ('admin', 'Pass@12345', 'Administrator', 3, 're_admin'),
+        ('wizpro_admin', 'Pass@12345', 'Wizpro Admin', 1, 'admin'),
+        ('paschal_admin', 'Pass@12345', 'Paschal Admin', 2, 'admin'),
+        ('wizpro_user', 'Pass@12345', 'Wizpro User', 1, 'contractor'),
+        ('paschal_user', 'Pass@12345', 'Paschal User', 2, 'contractor'),
+        ('avators_user', 'Pass@12345', 'Avators User', 4, 'contractor'),
+        ('patrol_officer_1', 'Pass@12345', 'Patrol Officer 1', 1, 'patrol'),
+        ('patrol_officer_2', 'Pass@12345', 'Patrol Officer 2', 1, 'patrol'),
+        ('patrol_officer_3', 'Pass@12345', 'Patrol Officer 3', 1, 'patrol'),
+    ]
+
+    is_sqlite = engine.dialect.name == "sqlite"
+
+    with engine.begin() as conn:
+        for username, pwd, name, cid, role in default_users:
+            password_hash = bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode()
+
+            params = {
+                "username": username,
+                "password_hash": password_hash,
+                "role": role,
+                "contractor_id": cid,
+            }
+
+            if force:
+                # Try upsert. Use dialect-appropriate syntax; fall back to delete+insert if upsert unsupported.
+                try:
+                    if is_sqlite:
+                        # SQLite UPSERT (3.24+)
+                        conn.execute(
+                            text(
+                                """
+                                INSERT INTO users (username, password_hash, role, contractor_id)
+                                VALUES (:username, :password_hash, :role, :contractor_id)
+                                ON CONFLICT(username) DO UPDATE SET
+                                    password_hash=excluded.password_hash,
+                                    role=excluded.role,
+                                    contractor_id=excluded.contractor_id
+                                """
+                            ), params
+                        )
+                    else:
+                        # PostgreSQL upsert using EXCLUDED
+                        conn.execute(
+                            text(
+                                """
+                                INSERT INTO users (username, password_hash, role, contractor_id)
+                                VALUES (:username, :password_hash, :role, :contractor_id)
+                                ON CONFLICT (username) DO UPDATE SET
+                                    password_hash=EXCLUDED.password_hash,
+                                    role=EXCLUDED.role,
+                                    contractor_id=EXCLUDED.contractor_id
+                                """
+                            ), params
+                        )
+                except Exception:
+                    # Fallback: delete existing and insert fresh
+                    conn.execute(text("DELETE FROM users WHERE username=:username"), {"username": username})
+                    conn.execute(
+                        text("INSERT INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id)"),
+                        params,
+                    )
+            else:
+                # Non-forcing: insert if not exists
+                if is_sqlite:
+                    conn.execute(
+                        text(
+                            """
+                            INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id)
+                            VALUES (:username, :password_hash, :role, :contractor_id)
+                            """
+                        ), params
+                    )
+                else:
+                    conn.execute(
+                        text(
+                            """
+                            INSERT INTO users (username, password_hash, role, contractor_id)
+                            VALUES (:username, :password_hash, :role, :contractor_id)
+                            ON CONFLICT (username) DO NOTHING
+                            """
+                        ), params
+                    )
+
+    print(f"Default users seeded (force={force})")
+
 # ------------------- IDLE REPORTS -------------------
 def save_idle_report(idle_df, uploaded_by):
     if idle_df.empty:
