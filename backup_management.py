@@ -359,9 +359,14 @@ def backup_management_page():
                             from googleapiclient.http import MediaFileUpload
                             from google.auth.transport.requests import Request
                             import pickle
+                            google_api_available = True
                         except ImportError:
+                            google_api_available = False
+
+                        if not google_api_available:
                             st.error("❌ Google API client not installed. Cannot perform Google Drive backup.")
-                            raise ImportError("Google API client not available")
+                            st.info("To enable Google Drive backups, install: `pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib`")
+                            return
 
                         # Configuration
                         DB_PATH = 'vts_database.db'
