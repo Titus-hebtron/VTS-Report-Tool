@@ -471,13 +471,19 @@ def save_incident_with_images(data, uploaded_by="Unknown", image_files=None):
                 for img in image_files:
                     img_name = None
                     img_bytes = None
+                    
                     if isinstance(img, dict):
                         img_name = img.get("name") or img.get("filename") or img.get("image_name")
                         img_bytes = img.get("data") or img.get("image_data") or img.get("bytes")
                     elif isinstance(img, (list, tuple)) and len(img) >= 2:
                         img_name, img_bytes = img[0], img[1]
+                    elif hasattr(img, 'name') and hasattr(img, 'read'):
+                        # Streamlit UploadedFile object
+                        img_name = img.name
+                        img_bytes = img.read()
                     else:
                         # Unsupported format; skip
+                        print(f"Warning: Unsupported image format: {type(img)}")
                         continue
 
                     if img_bytes is None:
@@ -486,7 +492,8 @@ def save_incident_with_images(data, uploaded_by="Unknown", image_files=None):
                     # Normalize/compress image before saving
                     try:
                         norm_bytes = _normalize_image(img_bytes)
-                    except Exception:
+                    except Exception as e:
+                        print(f"Warning: Could not normalize image {img_name}: {e}")
                         norm_bytes = img_bytes
 
                     conn.execute(
@@ -494,6 +501,7 @@ def save_incident_with_images(data, uploaded_by="Unknown", image_files=None):
                         {"incident_id": report_id, "image_data": norm_bytes, "image_name": img_name or "image.jpg"}
                     )
                     images_saved_count += 1
+                    print(f"DEBUG: Saved image '{img_name}' for incident {report_id}")
         except Exception as e:
             print(f"Error saving incident images: {e}")
             traceback.print_exc()
