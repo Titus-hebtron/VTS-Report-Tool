@@ -221,6 +221,57 @@ def backup_management_page():
     with tab3:
         st.subheader("⚙️ Backup Settings & Status")
 
+        # Google Drive Setup Section
+        st.subheader("🔐 Google Drive Authentication")
+        
+        token_exists = os.path.exists('token.pickle')
+        credentials_exists = os.path.exists('credentials.json')
+        
+        if token_exists:
+            st.success("✅ Google Drive is authenticated and ready for backups")
+            if st.button("🔄 Re-authenticate with Google Drive"):
+                if os.path.exists('token.pickle'):
+                    os.remove('token.pickle')
+                st.info("Token cleared. The next backup attempt will trigger new authentication.")
+                st.rerun()
+        elif credentials_exists:
+            st.info("📄 `credentials.json` found. Use the backup button to authenticate for the first time.")
+        else:
+            st.warning("⚠️ Google Drive credentials not configured")
+            with st.expander("📖 Setup Google Drive Authentication", expanded=False):
+                st.markdown("""
+### Setup Steps:
+
+1. **Go to Google Cloud Console:**
+   - Visit: https://console.cloud.google.com/
+   - Select project: **vts-backup-tool**
+
+2. **Enable Google Drive API:**
+   - Click: APIs & Services → Library
+   - Search: "Google Drive API"
+   - Click: ENABLE
+
+3. **Create OAuth 2.0 Credentials:**
+   - Click: APIs & Services → Credentials
+   - Create CONSENT SCREEN (External, add your email)
+   - Click: + CREATE CREDENTIALS → OAuth client ID
+   - Select: Desktop application
+   - Click: CREATE and download the JSON file
+
+4. **Add credentials.json:**
+   - Save the downloaded file as `credentials.json` in your project folder:
+   ```
+   d:/gps-report-tool/credentials.json
+   ```
+
+5. **Authenticate:**
+   - Use the "☁️ Run Full Backup to Google Drive" button
+   - A browser window will open for authentication
+   - Grant permissions when prompted
+
+📖 **Full Instructions:** See `GOOGLE_DRIVE_AUTH_SETUP.md` in your project root
+                """)
+
         # Backup status
         st.subheader("📊 Backup Status")
 
@@ -441,27 +492,25 @@ def backup_management_page():
                             if creds and creds.expired and creds.refresh_token:
                                 creds.refresh(Request())
                             else:
-                                st.warning("⚠️ Google Drive authentication not configured")
-                                st.info("""
-**To enable Google Drive backups:**
+                                st.error("❌ Google Drive authentication not configured")
+                                st.warning("""
+### Setup Required: Google Drive Authentication
 
-1. Download `credentials.json` from Google Cloud Console:
-   - Go to https://console.cloud.google.com/
-   - Create a project or select existing one
-   - Enable Google Drive API
-   - Create OAuth 2.0 credentials (Desktop app type)
-   - Download credentials and save as `credentials.json` in this directory
+Your VTS project **vts-backup-tool** needs Google Drive credentials.
 
-2. Run the authentication script (one time only):
-   ```
-   python backup_script.py --auth
-   ```
+**Quick Setup:**
+1. Open: https://console.cloud.google.com/apis/credentials
+2. Select project **vts-backup-tool** (Project ID: vts-backup-tool)
+3. Create **OAuth 2.0 Desktop credentials**
+4. Download the JSON file and save as `credentials.json` in this directory
 
-3. Local backups are still working - use "Run Local Backup Only" button above
+**Full Instructions:**
+📖 See `GOOGLE_DRIVE_AUTH_SETUP.md` in your project root for detailed steps
 
-For now, your backups are saved locally in the `backups/` folder.
+**Meantime:**
+✅ Use **"Run Local Backup Only"** above - backups are stored locally and you can download them anytime
                                 """)
-                                raise Exception("Google Drive not authenticated. See instructions above.")
+                                raise Exception("Google Drive not authenticated. Please see GOOGLE_DRIVE_AUTH_SETUP.md for instructions.")
 
                         service = build('drive', 'v3', credentials=creds)
 
