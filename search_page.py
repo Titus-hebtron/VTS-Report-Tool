@@ -256,10 +256,14 @@ def search_page():
                     query += " AND contractor_id = :contractor_id"
                     params["contractor_id"] = contractor_id
 
+            print(f"DEBUG: Report query: {query}")
+            print(f"DEBUG: Report params: {params}")
+
             try:
                 # Fetch main report data. The 'id' column is the Primary Key.
                 with engine.connect() as conn:
                     df = pd.read_sql_query(text(query), conn, params=params)
+                print(f"DEBUG: Fetched {len(df)} incident reports")
             except Exception as e:
                 st.error(f"Database error fetching incident data: {e}")
 
@@ -267,6 +271,7 @@ def search_page():
             # --- 2. FETCH IMAGE DATA (BLOBs) FOR LINKING ---
             if not df.empty and 'id' in df.columns: # 'id' is the primary key (PK)
                 report_ids = df['id'].tolist()
+                print(f"DEBUG: Found {len(report_ids)} reports with IDs: {report_ids}")
 
                 # Handling the IN clause parameters - use named binds
                 placeholders = ','.join([f':id_{i}' for i in range(len(report_ids))])
@@ -275,13 +280,17 @@ def search_page():
                 # Query the image table for BLOB data and metadata
                 # Note the change: incident_images table and incident_id column
                 image_query = f"SELECT incident_id, image_name, image_data FROM incident_images WHERE incident_id IN ({placeholders})"
+                print(f"DEBUG: Image query: {image_query}")
+                print(f"DEBUG: Image params: {image_params}")
 
                 try:
                     # Fetching the BLOB data is slow but necessary for embedding
                     with engine.connect() as conn:
                         image_df = pd.read_sql_query(text(image_query), conn, params=image_params)
+                    print(f"DEBUG: Fetched {len(image_df)} images")
                     st.success(f"Found {len(df)} reports and {len(image_df)} associated images.")
                 except Exception as e:
+                    print(f"DEBUG: Image fetch error: {e}")
                     st.warning(f"Could not fetch image data from incident_images table: {e}. Download will be data-only.")
 
         elif selected_option == "Breaks":
