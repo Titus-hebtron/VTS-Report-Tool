@@ -7,13 +7,18 @@ This script:
 2. Fixes image_data column to use bytea instead of text
 """
 
-from db_utils import get_sqlalchemy_engine, USE_SQLITE
+from db_utils import get_sqlalchemy_engine
 from sqlalchemy import text
+
+def _is_sqlite():
+    """Check if using SQLite database"""
+    engine = get_sqlalchemy_engine()
+    return engine.dialect.name == "sqlite"
 
 def migrate_postgres_schema():
     """Migrate PostgreSQL schema to fix auto-increment and binary storage"""
     
-    if USE_SQLITE:
+    if _is_sqlite():
         print("Database is SQLite - no migration needed")
         return
     

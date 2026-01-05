@@ -5,8 +5,12 @@ Initialize the SQLite database with schema
 from db_utils import get_sqlalchemy_engine
 from sqlalchemy import text
 
+def _is_sqlite():
+    """Check if using SQLite database"""
+    engine = get_sqlalchemy_engine()
+    return engine.dialect.name == "sqlite"
+
 def init_database():
-    from db_utils import USE_SQLITE
     engine = get_sqlalchemy_engine()
 
     with open('schema.sql', 'r') as f:
@@ -16,7 +20,7 @@ def init_database():
     conn = engine.raw_connection()
     try:
         cursor = conn.cursor()
-        if USE_SQLITE:
+        if _is_sqlite():
             cursor.executescript(sql)
         else:
             # PostgreSQL: split by semicolon and execute each statement

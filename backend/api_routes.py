@@ -5,8 +5,12 @@ from datetime import datetime, timedelta
 import sys
 import os
 sys.path.append('..')
-from db_utils import get_sqlalchemy_engine, USE_SQLITE
-from backend.auth import authenticate_user, create_access_token, get_current_user
+from db_utils import get_sqlalchemy_engine
+
+def _is_sqlite():
+    """Check if using SQLite database"""
+    engine = get_sqlalchemy_engine()
+    return engine.dialect.name == "sqlite"
 
 router = APIRouter()
 
@@ -63,7 +67,7 @@ async def create_incident(
 ):
     engine = get_sqlalchemy_engine()
     with engine.begin() as conn:
-        if USE_SQLITE:
+        if _is_sqlite():
             query = """
                 INSERT INTO incident_reports 
                 (incident_type, patrol_car, incident_date, incident_time, caller, phone_number, 
@@ -97,7 +101,7 @@ async def create_incident(
                 datetime.now()
             )
         )
-        if USE_SQLITE:
+        if _is_sqlite():
             incident_id = result.lastrowid
         else:
             incident_id = result.fetchone()[0]
@@ -111,7 +115,7 @@ async def get_incidents(
 ):
     engine = get_sqlalchemy_engine()
     with engine.begin() as conn:
-        param_marker = "?" if USE_SQLITE else "%s"
+        param_marker = "?" if _is_sqlite() else "%s"
         query = f"""
             SELECT id, incident_type, patrol_car, incident_date, incident_time, 
                    location, description, created_at
@@ -141,7 +145,7 @@ async def get_incidents(
 async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
     engine = get_sqlalchemy_engine()
     with engine.begin() as conn:
-        param_marker = "?" if USE_SQLITE else "%s"
+        param_marker = "?" if _is_sqlite() else "%s"
         
         # Get incident count
         result = conn.execute(

@@ -7,8 +7,13 @@ This script ensures the correct patrol cars are in the system:
 - 3 Avators patrol cars
 - 2 Recovery/Backup vehicles
 """
-from db_utils import get_sqlalchemy_engine, USE_SQLITE
+from db_utils import get_sqlalchemy_engine
 from sqlalchemy import text
+
+def _is_sqlite():
+    """Check if using SQLite database"""
+    engine = get_sqlalchemy_engine()
+    return engine.dialect.name == "sqlite"
 
 def add_or_update_vehicles():
     """
@@ -44,7 +49,7 @@ def add_or_update_vehicles():
     
     with engine.begin() as conn:
         for plate_number, contractor in vehicles:
-            if USE_SQLITE:
+            if _is_sqlite():
                 # For SQLite, use INSERT OR IGNORE to prevent duplicates
                 conn.execute(text("""
                     INSERT OR IGNORE INTO vehicles (plate_number, contractor)

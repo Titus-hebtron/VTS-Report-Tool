@@ -8,9 +8,14 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import bcrypt
-from db_utils import get_sqlalchemy_engine, get_connection, USE_SQLITE
+from db_utils import get_sqlalchemy_engine, get_connection
 from sqlalchemy import text
 import traceback
+
+def _is_sqlite():
+    """Check if using SQLite database"""
+    engine = get_sqlalchemy_engine()
+    return engine.dialect.name == "sqlite"
 
 def system_manager_page():
     """System manager page for resident engineer"""
@@ -229,7 +234,7 @@ def add_new_user(username, password, role, contractor_id):
         engine = get_sqlalchemy_engine()
         
         with engine.begin() as conn:
-            if USE_SQLITE:
+            if _is_sqlite():
                 conn.execute(text("""
                     INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id)
                     VALUES (:username, :password_hash, :role, :contractor_id)
@@ -425,7 +430,7 @@ def add_new_contractor(name):
         engine = get_sqlalchemy_engine()
         
         with engine.begin() as conn:
-            if USE_SQLITE:
+            if _is_sqlite():
                 conn.execute(text("INSERT INTO contractors (name) VALUES (:name)"), {"name": name})
             else:
                 conn.execute(text("INSERT INTO contractors (name) VALUES (:name) ON CONFLICT DO NOTHING"), {"name": name})
@@ -590,7 +595,7 @@ def add_new_vehicle(plate_number, contractor):
         engine = get_sqlalchemy_engine()
 
         with engine.begin() as conn:
-            if USE_SQLITE:
+            if _is_sqlite():
                 conn.execute(text("INSERT INTO vehicles (plate_number, contractor) VALUES (:plate_number, :contractor)"),
                            {"plate_number": plate_number, "contractor": contractor})
             else:
@@ -711,7 +716,7 @@ def data_management_section():
         # Get database file size (SQLite only)
         db_size_mb = 0
         db_path = None
-        if USE_SQLITE:
+        if _is_sqlite():
             import os
             db_path = 'vts_database.db'
             if os.path.exists(db_path):
@@ -723,12 +728,12 @@ def data_management_section():
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            if USE_SQLITE and db_path:
+            if _is_sqlite() and db_path:
                 st.metric("Database Size", f"{db_size_mb:.2f} MB")
             else:
                 st.metric("Database Size", "N/A (PostgreSQL)")
         with col2:
-            if USE_SQLITE:
+            if _is_sqlite():
                 # Get disk free space
                 try:
                     import shutil
@@ -740,7 +745,7 @@ def data_management_section():
             else:
                 st.metric("Disk Free Space", "N/A")
         with col3:
-            if USE_SQLITE and db_size_mb > 0:
+            if _is_sqlite() and db_size_mb > 0:
                 # Show relative size indicator
                 if db_size_mb < 10:
                     st.metric("Size Category", "Small")
@@ -754,7 +759,7 @@ def data_management_section():
                 st.metric("Size Category", "N/A")
 
         # Storage alerts
-        if USE_SQLITE:
+        if _is_sqlite():
             if db_size_mb > 200:  # Very large threshold
                 st.error("🚨 Database is very large (>200MB). Immediate action recommended: archive old data or split database.")
             elif db_size_mb > 100:  # Large threshold
@@ -1267,7 +1272,7 @@ def restore_database_from_backup(backup_path):
         import os
         
         # Determine database path
-        db_path = 'vts_database.db' if USE_SQLITE else None
+        db_path = 'vts_database.db' if _is_sqlite() else None
         
         if not db_path:
             st.error("Restore is only supported for SQLite databases currently.")
