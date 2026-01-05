@@ -11,6 +11,8 @@ import glob
 import zipfile
 import io
 import os
+import subprocess
+from db_utils import get_sqlalchemy_engine, DATABASE_URL
 
 def backup_management_page():
     """Backup management page for resident engineer"""
@@ -385,14 +387,33 @@ def backup_management_page():
                         timestamp = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
 
                         # Database backup
-                        if os.path.exists(DB_PATH):
-                            db_backup = f'vts_database_backup_{timestamp}.db'
-                            db_path = os.path.join(BACKUP_DIR, db_backup)
-                            shutil.copy2(DB_PATH, db_path)
-                            st.info(f"✅ Database backup created: {db_backup}")
+                        engine = get_sqlalchemy_engine()
+                        is_sqlite = engine.dialect.name == "sqlite"
+
+                        if is_sqlite:
+                            # Local SQLite file backup
+                            if os.path.exists(DB_PATH):
+                                db_backup = f'vts_database_backup_{timestamp}.db'
+                                db_path = os.path.join(BACKUP_DIR, db_backup)
+                                shutil.copy2(DB_PATH, db_path)
+                                st.info(f"✅ Database backup created: {db_backup}")
+                            else:
+                                st.error("SQLite database file not found: vts_database.db")
+                                st.info("If you're running with PostgreSQL (DATABASE_URL set), the app stores data in Postgres rather than a local SQLite file.")
+                                # Do not raise an exception to keep UI usable
                         else:
-                            st.error("Database file not found")
-                            raise FileNotFoundError("Database file not found")
+                            # PostgreSQL: try to run pg_dump if available
+                            pg_dump_path = shutil.which("pg_dump")
+                            if pg_dump_path and DATABASE_URL:
+                                db_backup = f'vts_database_backup_{timestamp}.sql'
+                                db_path = os.path.join(BACKUP_DIR, db_backup)
+                                try:
+                                    subprocess.run([pg_dump_path, DATABASE_URL, "-f", db_path], check=True)
+                                    st.info(f"✅ PostgreSQL dump created: {db_backup}")
+                                except Exception as e:
+                                    st.warning(f"pg_dump failed: {e}. Skipping DB dump. Consider installing pg_dump or creating a manual dump.")
+                            else:
+                                st.info("Running on PostgreSQL and pg_dump not available — skipping DB file backup. Use pg_dump to create a dump manually.")
 
                         # Images backup
                         images_backup = None
