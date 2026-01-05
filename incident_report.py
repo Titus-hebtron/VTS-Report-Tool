@@ -421,10 +421,11 @@ def incident_report_page(patrol_vehicle_options=None):
                 }
 
                 # Save incident and images in a single atomic transaction
-                report_id = save_incident_with_images(data, uploaded_by="Admin", image_files=uploaded_photos)
-                print(f"DEBUG: Report ID returned: {report_id}")
+                report_id, images_saved_count = save_incident_with_images(data, uploaded_by="Admin", image_files=uploaded_photos)
+                print(f"DEBUG: Report ID returned: {report_id}, Images saved: {images_saved_count}")
 
-                st.success(f"✅ Incident report saved successfully! Report ID: {report_id}")
+                image_msg = f" with {images_saved_count} image(s)" if images_saved_count > 0 else ""
+                st.success(f"✅ Incident report saved successfully! Report ID: {report_id}{image_msg}")
 
             except Exception as e:
                 st.error(f"❌ Error saving incident report: {e}")

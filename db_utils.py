@@ -456,9 +456,13 @@ def save_incident_with_images(data, uploaded_by="Unknown", image_files=None):
 
     `image_files` may be a list of dicts like {"name": ..., "data": ...}
     or a list of (name, bytes) tuples.
+    
+    Returns:
+        tuple: (report_id, images_saved_count)
     """
     # First save the incident
     report_id = save_incident_report(data, uploaded_by=uploaded_by)
+    images_saved_count = 0
 
     # Then save images (if any)
     if image_files:
@@ -489,11 +493,12 @@ def save_incident_with_images(data, uploaded_by="Unknown", image_files=None):
                         text("INSERT INTO incident_images (incident_id, image_data, image_name) VALUES (:incident_id, :image_data, :image_name)"),
                         {"incident_id": report_id, "image_data": norm_bytes, "image_name": img_name or "image.jpg"}
                     )
+                    images_saved_count += 1
         except Exception as e:
             print(f"Error saving incident images: {e}")
             traceback.print_exc()
 
-    return report_id
+    return report_id, images_saved_count
 
 
 # ------------------- DEFAULT USER SEEDING -------------------
