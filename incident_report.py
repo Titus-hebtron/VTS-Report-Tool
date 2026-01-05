@@ -848,13 +848,13 @@ def incident_report_page(patrol_vehicle_options=None):
                     # Validate that we have valid image data before displaying
                     try:
                         # First try to display as-is (for properly saved images)
-                        st.image(image_bytes, caption=f"{img_name} (Incident ID: {display_id})", use_column_width=True)
+                        st.image(image_bytes, caption=f"{img_name} (Incident ID: {display_id})", width=800)
                     except Exception as e:
                         st.warning(f"⚠️ Could not display image directly, trying normalization: {e}")
                         try:
                             # If direct display fails, try normalizing
                             normalized_image_bytes = _normalize_image(image_bytes)
-                            st.image(normalized_image_bytes, caption=f"{img_name} (normalized) - Incident ID: {selected_id}", use_column_width=True)
+                            st.image(normalized_image_bytes, caption=f"{img_name} (normalized) - Incident ID: {selected_id}", width=800)
                         except Exception as norm_e:
                             st.error(f"❌ Invalid image data for {img_name}: {norm_e}")
                             st.info("This image file appears to be corrupted or in an unsupported format.")
@@ -879,7 +879,7 @@ def incident_report_page(patrol_vehicle_options=None):
                                             try:
                                                 normalized_decoded = _normalize_image(decoded_bytes)
                                                 st.success("✅ Successfully decoded and normalized hex data! Displaying:")
-                                                st.image(normalized_decoded, caption=f"{img_name} (hex-decoded) - Incident ID: {display_id}", use_column_width=True)
+                                                st.image(normalized_decoded, caption=f"{img_name} (hex-decoded) - Incident ID: {display_id}", width=800)
                                                 # Successfully displayed, skip further error processing
                                                 st.stop()
                                             except Exception as decode_e:

@@ -215,7 +215,7 @@ def breaks_pickups_page():
                 with open(photo_path, "wb") as f:
                     f.write(photo_bytes)
 
-                st.image(photo_bytes, caption="Uploaded Pickup Photo", use_column_width=True)
+                st.image(photo_bytes, caption="Uploaded Pickup Photo", width=800)
 
             st.success("✅ Pickup record saved!")
 
