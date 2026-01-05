@@ -128,7 +128,7 @@ if ('serviceWorker' in navigator) {
 
 # Logo & Title
 if os.path.exists("Kenhalogo.png"):
-    st.image("Kenhalogo.png", width='stretch')
+    st.image("Kenhalogo.png", use_column_width=True)
 st.markdown("<h1 style='text-align: center; color: #004080;'>VTS REPORT TOOL</h1>", unsafe_allow_html=True)
 st.markdown("<hr style='border:2px solid #004080'>", unsafe_allow_html=True)
 
@@ -203,8 +203,9 @@ if not st.session_state["login_state"]:
             else:
                 st.error("❌ Invalid login credentials")
 
-    st.markdown("""
-    <div style='text-align: center; color: gray; font-size: 12px; margin-top: 50px;'>2025/2026 Hebtron Technologies</div>
+    current_year = datetime.datetime.now().year
+    st.markdown(f"""
+    <div style='text-align: center; color: gray; font-size: 12px; margin-top: 50px;'>{current_year} Hebtron Technologies</div>
     """, unsafe_allow_html=True)
     st.stop()
 
