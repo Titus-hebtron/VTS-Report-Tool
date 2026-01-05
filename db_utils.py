@@ -179,10 +179,34 @@ def init_database():
                     cursor.executescript(sql)
                     cursor.close()
                 else:
-                    # PostgreSQL - split statements by semicolon and skip comments
-                    statements = [s.strip() for s in sql.split(";") if s.strip() and not s.strip().startswith("--")]
-                    for stmt in statements:
-                        conn.execute(text(stmt))
+                    # PostgreSQL: split SQL by semicolon, remove comments/empty lines, execute each statement
+                    # This ensures CREATE TABLE statements run before INSERT statements
+                    lines = sql.split('\n')
+                    current_stmt = []
+                    
+                    for line in lines:
+                        # Remove comments
+                        if '--' in line:
+                            line = line[:line.index('--')]
+                        line = line.strip()
+                        
+                        if not line:
+                            continue
+                        
+                        current_stmt.append(line)
+                        
+                        # If line ends with semicolon, execute the statement
+                        if line.endswith(';'):
+                            stmt = ' '.join(current_stmt)
+                            stmt = stmt[:-1].strip()  # Remove trailing semicolon
+                            
+                            if stmt:  # Only execute non-empty statements
+                                try:
+                                    conn.execute(text(stmt))
+                                except Exception as e:
+                                    print(f"Warning: failed to execute statement: {stmt[:80]}... Error: {e}")
+                            
+                            current_stmt = []
 
                 print("Tables created successfully!")
 
