@@ -309,7 +309,33 @@ def get_contractor_name(contractor_id):
 
 # ------------------- INCIDENT REPORTS -------------------
 def clean_data(data: dict):
-    return {k: (None if v == "" else v) for k, v in data.items()}
+    """Clean and normalize incident report data.
+    
+    - Convert empty strings to None
+    - Convert Yes/No strings to 1/0 for integer fields
+    """
+    # Fields that expect Yes/No -> 1/0 conversion
+    boolean_fields = {'fire_hazard', 'oil_leakage', 'chemical_leakage', 'damage_road_furniture'}
+    
+    cleaned = {}
+    for k, v in data.items():
+        if v == "":
+            cleaned[k] = None
+        elif k in boolean_fields and isinstance(v, str):
+            # Convert Yes/No to 1/0
+            if v.lower() in ('yes', 'true', '1'):
+                cleaned[k] = 1
+            elif v.lower() in ('no', 'false', '0'):
+                cleaned[k] = 0
+            else:
+                # If not a recognized boolean string, try to convert to int or leave as is
+                try:
+                    cleaned[k] = int(v)
+                except (ValueError, TypeError):
+                    cleaned[k] = v
+        else:
+            cleaned[k] = v
+    return cleaned
 
 def save_incident_report(data, uploaded_by="Unknown"):
     data = clean_data(data)
