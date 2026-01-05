@@ -1,109 +1,3 @@
-import os
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable is not set")
-
-# Fix Render URL for SQLAlchemy
-if DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace(
-        "postgresql://",
-        "postgresql+psycopg2://",
-        1
-    )
-
-# Force SSL (Render requirement)
-if "sslmode=" not in DATABASE_URL:
-    DATABASE_URL += "?sslmode=require"
-
-# Determine if using SQLite
-USE_SQLITE = "sqlite" in DATABASE_URL.lower()
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-)
-
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
-
-def get_sqlalchemy_engine():
-    return engine
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-def init_database():
-    """Initialize database tables if they don't exist."""
-    from sqlalchemy import inspect
-    from datetime import datetime
-    import bcrypt
-    
-    print("Checking database initialization...")
-    
-    try:
-        inspector = inspect(engine)
-        tables = inspector.get_table_names()
-        
-        if 'users' not in tables:
-            print("Creating database tables...")
-            with open("schema.sql", "r") as f:
-                sql = f.read()
-            
-            # Execute schema
-            with engine.begin() as conn:
-                statements = [s.strip() for s in sql.split(";") if s.strip() and not s.startswith("--")]
-                for stmt in statements:
-                    conn.execute(text(stmt))
-            
-            print("Tables created successfully!")
-            
-            # Add default users
-            default_users = [
-                ('admin', 'Pass@12345', 'Administrator', 3, 're_admin'),
-                ('wizpro_admin', 'Pass@12345', 'Wizpro Admin', 1, 'admin'),
-                ('paschal_admin', 'Pass@12345', 'Paschal Admin', 2, 'admin'),
-                ('wizpro_user', 'Pass@12345', 'Wizpro User', 1, 'contractor'),
-                ('paschal_user', 'Pass@12345', 'Paschal User', 2, 'contractor'),
-                ('avators_user', 'Pass@12345', 'Avators User', 4, 'contractor'),
-                ('patrol_officer_1', 'Pass@12345', 'Patrol Officer 1', 1, 'patrol'),
-                ('patrol_officer_2', 'Pass@12345', 'Patrol Officer 2', 1, 'patrol'),
-                ('patrol_officer_3', 'Pass@12345', 'Patrol Officer 3', 1, 'patrol'),
-            ]
-            
-            with engine.begin() as conn:
-                for username, pwd, name, cid, role in default_users:
-                    hashed = bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode()
-                    conn.execute(
-                        text("""INSERT INTO users
-                            (username, password_hash, role, contractor_id)
-                            VALUES (:username, :password_hash, :role, :contractor_id)
-                            ON CONFLICT (username) DO NOTHING
-                        """),
-                        {"username": username, "password_hash": hashed, "role": role, "contractor_id": cid}
-                    )
-            print("Default users added!")
-        else:
-            print("Database tables already exist")
-        
-        print("✅ Database initialization completed successfully")
-    except Exception as e:
-        print(f"Database initialization failed: {e}")
-        raise
 # db_utils.py - Cleaned SQLite/PostgreSQL version
 from sqlalchemy import create_engine, text
 import bcrypt
@@ -121,18 +15,39 @@ def adapt_datetime(dt):
     return dt.isoformat()
 sqlite3.register_adapter(datetime, adapt_datetime)
 
+
+# ------------------- IMAGE NORMALIZATION HELPER -------------------
+def _normalize_image(img_bytes: bytes) -> bytes:
+    """Normalize/compress image bytes to a reasonable JPEG for storage.
+
+    Falls back to returning the original bytes if Pillow is unavailable
+    or processing fails.
+    """
+    try:
+        from PIL import Image
+        import io
+
+        buf = io.BytesIO(img_bytes)
+        img = Image.open(buf)
+        # Convert to RGB for formats like PNG with alpha
+        if img.mode in ("RGBA", "LA") or (img.mode == "P"):
+            img = img.convert("RGB")
+
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=85, optimize=True)
+        return out.getvalue()
+    except Exception:
+        return img_bytes
+
 # ------------------- DATABASE CONFIG -------------------
 DATABASE_URL = os.getenv("DATABASE_URL") or ""
-USE_SQLITE = True
 
 if DATABASE_URL:
     DATABASE_URL = DATABASE_URL.strip()
+    # SQLAlchemy prefers the postgresql:// scheme
     if DATABASE_URL.startswith("postgres://"):
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    if DATABASE_URL.startswith("postgresql://"):
-        USE_SQLITE = False
 else:
-    # Ensure DATABASE_URL is a string (avoid passing None to SQLAlchemy)
     DATABASE_URL = ""
 
 
@@ -164,24 +79,24 @@ def _mask_db_url(url: str) -> str:
 
 
 # Print masked DATABASE_URL at startup to aid debugging (safe to log)
-print(f"DATABASE_URL (masked): {_mask_db_url(DATABASE_URL)} | USE_SQLITE={USE_SQLITE}")
+print(f"DATABASE_URL (masked): {_mask_db_url(DATABASE_URL)}")
 
 # ------------------- ENGINE CREATION (ONLY ONCE) -------------------
 def create_db_engine():
-    global USE_SQLITE
-    if USE_SQLITE:
-        print("✅ Using SQLite database: vts_database.db")
+    # If no DATABASE_URL provided, use local SQLite
+    if not DATABASE_URL:
+        print("No DATABASE_URL found — using local SQLite: vts_database.db")
         return create_engine(
             "sqlite:///vts_database.db",
             connect_args={"check_same_thread": False}
         )
-    
-    # PostgreSQL engine
-    print(f"📊 Connecting to PostgreSQL database...")
-    
+
+    # Attempt to connect to PostgreSQL
+    print(f"Attempting to connect to database: {_mask_db_url(DATABASE_URL)}")
+
     # Check if sslmode is already in URL
     has_sslmode_in_url = '?sslmode=' in DATABASE_URL or '&sslmode=' in DATABASE_URL
-    
+
     connect_args = {
         "connect_timeout": 30,
         "keepalives": 1,
@@ -189,11 +104,10 @@ def create_db_engine():
         "keepalives_interval": 10,
         "keepalives_count": 5
     }
-    
-    # Only add sslmode if not already in URL
+
     if not has_sslmode_in_url:
         connect_args["sslmode"] = "require"
-    
+
     try:
         engine = create_engine(
             DATABASE_URL,
@@ -204,26 +118,23 @@ def create_db_engine():
             pool_recycle=3600,
             connect_args=connect_args
         )
-        
+
         # Test connection
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        
-        print("✅ PostgreSQL connected successfully")
+
+        print("Database connected successfully")
         return engine
-        
+
     except Exception as e:
         err_str = str(e)
-        # If SQLAlchemy couldn't parse the URL, print masked value and guidance
         if isinstance(e, ArgumentError) or "Could not parse SQLAlchemy URL" in err_str:
-            print(f"❌ Invalid DATABASE_URL provided: {_mask_db_url(DATABASE_URL)}")
+            print(f"Invalid DATABASE_URL provided: {_mask_db_url(DATABASE_URL)}")
             print("Please set a valid SQLAlchemy DATABASE_URL (e.g. postgresql://user:pass@host:port/dbname) or leave unset to use local SQLite.")
         else:
-            print(f"⚠️  PostgreSQL connection failed: {e}")
+            print(f"Database connection failed: {e}")
 
-        print("🔄 Falling back to SQLite for local operation")
-        # Fall back to SQLite if PostgreSQL fails
-        USE_SQLITE = True
+        print("Falling back to local SQLite: vts_database.db")
         return create_engine(
             "sqlite:///vts_database.db",
             connect_args={"check_same_thread": False}
@@ -247,16 +158,15 @@ def init_database():
 
     try:
         with engine.begin() as conn:
+            # Detect SQLite by engine dialect
+            is_sqlite = engine.dialect.name == "sqlite"
+
             # Check if users table exists
-            if USE_SQLITE:
-                result = conn.execute(
-                    text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-                )
+            if is_sqlite:
+                result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table' AND name='users'"))
             else:
-                result = conn.execute(
-                    text("SELECT table_name FROM information_schema.tables "
-                         "WHERE table_name='users' AND table_schema='public'")
-                )
+                result = conn.execute(text("SELECT table_name FROM information_schema.tables WHERE table_name='users' AND table_schema='public'"))
+
             table_exists = result.fetchone() is not None
 
             if not table_exists:
@@ -264,15 +174,16 @@ def init_database():
                 with open("schema.sql", "r") as f:
                     sql = f.read()
 
-                if USE_SQLITE:
+                if is_sqlite:
                     cursor = conn.connection.cursor()
                     cursor.executescript(sql)
                     cursor.close()
                 else:
-                    # PostgreSQL - split statements by semicolon
-                    statements = [s.strip() for s in sql.split(";") if s.strip() and not s.startswith("--")]
+                    # PostgreSQL - split statements by semicolon and skip comments
+                    statements = [s.strip() for s in sql.split(";") if s.strip() and not s.strip().startswith("--")]
                     for stmt in statements:
                         conn.execute(text(stmt))
+
                 print("Tables created successfully!")
 
                 # Add default users
@@ -290,7 +201,7 @@ def init_database():
 
                 for username, pwd, name, cid, role in default_users:
                     hashed = bcrypt.hashpw(pwd.encode(), bcrypt.gensalt()).decode()
-                    if USE_SQLITE:
+                    if is_sqlite:
                         conn.execute(
                             text("""INSERT OR IGNORE INTO users
                                 (username, password_hash, role, contractor_id)
@@ -311,7 +222,7 @@ def init_database():
             else:
                 print("Database tables already exist")
 
-        print("✅ Database initialization completed successfully")
+        print("Database initialization completed successfully")
     except Exception as e:
         print(f"Database initialization failed: {e}")
         raise
@@ -320,7 +231,8 @@ def init_database():
 def add_user(username, plain_password, role="contractor", contractor_id=None):
     hashed = bcrypt.hashpw(plain_password.encode(), bcrypt.gensalt()).decode()
     with engine.begin() as conn:
-        if USE_SQLITE:
+        is_sqlite = engine.dialect.name == "sqlite"
+        if is_sqlite:
             conn.execute(
                 text("""INSERT OR IGNORE INTO users
                         (username, password_hash, role, contractor_id)
@@ -381,7 +293,8 @@ def save_incident_report(data, uploaded_by="Unknown"):
     insert_data = {**data, "uploaded_by": uploaded_by, "contractor_id": contractor_id}
 
     with engine.begin() as conn:
-        if USE_SQLITE:
+        is_sqlite = engine.dialect.name == "sqlite"
+        if is_sqlite:
             insert_data["created_at"] = datetime.now()
             conn.execute(
                 text("""INSERT INTO incident_reports (
@@ -565,3 +478,11 @@ def get_idle_reports(limit=10000):
     params["limit"] = limit
     df = pd.read_sql_query(text(query), engine, params=params)
     return df
+
+
+# Automatically initialize database (create tables and seed defaults) on import.
+# Wrap in try/except so imports don't crash if initialization fails in certain environments.
+try:
+    init_database()
+except Exception as e:
+    print(f"Warning: automatic database initialization failed: {e}")

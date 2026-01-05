@@ -37,10 +37,10 @@ def init_database_if_needed():
         # Note: The patrol cars being monitored through GPRS are the five vehicles from the two contractors:
         # Wizpro (3 vehicles + recovery car) and Paschal (2 vehicles + recovery car)
         # The recovery cars serve as additional slots for backup vehicles
-        from db_utils import get_sqlalchemy_engine, USE_SQLITE
+        from db_utils import get_sqlalchemy_engine
         from sqlalchemy import text
-
         engine = get_sqlalchemy_engine()
+        is_sqlite = engine.dialect.name == "sqlite"
         with engine.begin() as conn:
             # Total of 8 vehicles: 3 Wizpro, 2 Paschal, 3 Avators
             vehicles = [
@@ -51,7 +51,7 @@ def init_database_if_needed():
             # Use raw cursor for vehicle insertion to avoid SQLAlchemy parameter issues
             cursor = conn.connection.cursor()
             for plate_number, contractor in vehicles:
-                if USE_SQLITE:
+                if is_sqlite:
                     cursor.execute("INSERT OR IGNORE INTO vehicles (plate_number, contractor) VALUES (?, ?)",
                                   (plate_number, contractor))
                 else:
@@ -59,10 +59,7 @@ def init_database_if_needed():
                                   (plate_number, contractor))
 
             # Add sample idle reports for testing (only if table is empty)
-            try:
-                if USE_SQLITE:
-                    cursor.execute("SELECT COUNT(*) FROM idle_reports")
-                else:
+                try:
                     cursor.execute("SELECT COUNT(*) FROM idle_reports")
                 count = cursor.fetchone()[0]
 
@@ -76,7 +73,7 @@ def init_database_if_needed():
                         ('KAV 444A', datetime(2024, 10, 1, 14, 0, 0), datetime(2024, 10, 1, 14, 25, 0), 25.0, 'Parklands', -1.2640, 36.8261, 'Vehicle maintenance', 'admin', 4),
                     ]
                     for vehicle, idle_start, idle_end, duration, location, lat, lon, description, uploaded_by, contractor_id in idle_reports:
-                        if USE_SQLITE:
+                        if is_sqlite:
                             cursor.execute("""
                                 INSERT OR IGNORE INTO idle_reports
                                 (vehicle, idle_start, idle_end, idle_duration_min, location_address, latitude, longitude, description, uploaded_by, contractor_id, uploaded_at)
@@ -176,13 +173,13 @@ if not st.session_state["login_state"]:
         if st.button("Login"):
 
             import bcrypt
-            from db_utils import USE_SQLITE
 
             engine = get_sqlalchemy_engine()
+            is_sqlite = engine.dialect.name == "sqlite"
             conn = engine.raw_connection()
             cur = conn.cursor()
 
-            if USE_SQLITE:
+            if is_sqlite:
                 # SQLite uses ?
                 cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = ? AND u.username = ?",
                             (contractor, username))

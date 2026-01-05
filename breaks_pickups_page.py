@@ -169,30 +169,42 @@ def breaks_pickups_page():
 
             engine = get_sqlalchemy_engine()
             with engine.begin() as conn:
-                result = conn.execute(
-                    text("""
-                        INSERT INTO pickups (vehicle, description, pickup_start, pickup_end, pickup_date, contractor_id)
-                        VALUES (:vehicle, :description, :pickup_start, :pickup_end, :pickup_date, :contractor_id)
-                    """),
-                    {
-                        "vehicle": pickup_vehicle,
-                        "description": pickup_description,
-                        "pickup_start": pickup_start,
-                        "pickup_end": pickup_end,
-                        "pickup_date": pickup_date,
-                        "contractor_id": contractor_id
-                    }
-                )
-                # Get the last inserted row id (works for both SQLite and PostgreSQL)
-                from db_utils import USE_SQLITE
-                if USE_SQLITE:
+                # Determine DB type to choose insertion style
+                is_sqlite = engine.dialect.name == "sqlite"
+                if is_sqlite:
+                    conn.execute(
+                        text("""
+                            INSERT OR IGNORE INTO pickups (vehicle, description, pickup_start, pickup_end, pickup_date, contractor_id)
+                            VALUES (:vehicle, :description, :pickup_start, :pickup_end, :pickup_date, :contractor_id)
+                        """),
+                        {
+                            "vehicle": pickup_vehicle,
+                            "description": pickup_description,
+                            "pickup_start": pickup_start,
+                            "pickup_end": pickup_end,
+                            "pickup_date": pickup_date,
+                            "contractor_id": contractor_id
+                        }
+                    )
                     result = conn.execute(text("SELECT last_insert_rowid()"))
                     pickup_id = result.fetchone()[0]
                 else:
-                    # For PostgreSQL, use RETURNING clause in the INSERT statement
-                    # We need to modify the INSERT to use RETURNING
-                    # For now, let's use a different approach - get the max id
-                    result = conn.execute(text("SELECT MAX(id) FROM pickups"))
+                    # PostgreSQL: use RETURNING to get inserted id
+                    result = conn.execute(
+                        text("""
+                            INSERT INTO pickups (vehicle, description, pickup_start, pickup_end, pickup_date, contractor_id)
+                            VALUES (:vehicle, :description, :pickup_start, :pickup_end, :pickup_date, :contractor_id)
+                            RETURNING id
+                        """),
+                        {
+                            "vehicle": pickup_vehicle,
+                            "description": pickup_description,
+                            "pickup_start": pickup_start,
+                            "pickup_end": pickup_end,
+                            "pickup_date": pickup_date,
+                            "contractor_id": contractor_id
+                        }
+                    )
                     pickup_id = result.fetchone()[0]
 
             if pickup_photo:
