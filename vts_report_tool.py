@@ -57,10 +57,9 @@ def init_database_if_needed():
                 else:
                     cursor.execute("INSERT INTO vehicles (plate_number, contractor) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                                   (plate_number, contractor))
-
             # Add sample idle reports for testing (only if table is empty)
-                try:
-                    cursor.execute("SELECT COUNT(*) FROM idle_reports")
+            try:
+                cursor.execute("SELECT COUNT(*) FROM idle_reports")
                 count = cursor.fetchone()[0]
 
                 if count == 0:  # Only add sample data if table is empty
