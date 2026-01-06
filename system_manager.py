@@ -476,8 +476,9 @@ def patrol_car_management_section():
         """
         vehicles_df = pd.read_sql_query(text(query), engine)
 
-        # Display statistics - only count actual patrol vehicles (those with 'Patrol' in name)
-        patrol_vehicles_df = vehicles_df[vehicles_df['plate_number'].str.contains('Patrol', case=False, na=False)]
+        # Display statistics - include vehicles owned by contractors as patrol cars as well
+        # Treat all vehicles in the `vehicles` table (including contractor vehicles) as patrol cars
+        patrol_vehicles_df = vehicles_df.copy()
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -520,8 +521,8 @@ def patrol_car_management_section():
         if contractor_filter != "All Contractors":
             filtered_df = filtered_df[filtered_df['contractor'] == contractor_filter]
 
-        # Display vehicles - filter to show only patrol vehicles
-        patrol_filtered_df = filtered_df[filtered_df['plate_number'].str.contains('Patrol', case=False, na=False)]
+        # Display vehicles - treat contractor vehicles as patrol cars (show all filtered vehicles)
+        patrol_filtered_df = filtered_df.copy()
         st.subheader(f"🚗 Patrol Cars ({len(patrol_filtered_df)})")
 
         if len(patrol_filtered_df) > 0:
