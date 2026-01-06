@@ -236,7 +236,18 @@ st.sidebar.write(f"**Role:** {st.session_state['role']}")
 # Contractor handling
 if st.session_state["role"] == "re_admin":
     st.sidebar.subheader("🔄 Switch Contractor")
-    contractor = st.sidebar.selectbox("Select Contractor", ["Wizpro", "Paschal", "Avators"], key="contractor_switch")
+    # If user is re_admin allow switching active contractor from DB list
+    contractor_options = ["Wizpro", "Paschal", "Avators"]
+    try:
+        engine = get_sqlalchemy_engine()
+        df = pd.read_sql_query(text("SELECT name FROM contractors ORDER BY name"), engine)
+        if not df.empty:
+            contractor_options = df['name'].tolist()
+    except Exception:
+        # keep fallback list
+        pass
+
+    contractor = st.sidebar.selectbox("Select Contractor", contractor_options, key="contractor_switch")
     st.session_state["active_contractor"] = get_contractor_id(contractor)
 else:
     contractor = st.session_state["contractor"]

@@ -388,6 +388,37 @@ def contractor_management_section():
                         except Exception as e:
                             st.error(f"❌ Error adding contractor: {str(e)}")
 
+        # Merge contractors utility (combine multiple contractors into one)
+        with st.expander("🔀 Merge Contractors", expanded=False):
+            try:
+                # Present multi-select of contractor names
+                contractor_names = contractors_df['name'].tolist()
+                to_merge = st.multiselect("Select contractors to merge (select 2 or more)", contractor_names, key="merge_select")
+                target = st.selectbox("Merge into (target contractor)", contractor_names, key="merge_target")
+
+                if st.button("🔁 Merge Selected Contractors"):
+                    if not to_merge or len(to_merge) < 2:
+                        st.error("❌ Please select at least two contractors to merge.")
+                    elif target not in to_merge:
+                        st.error("❌ Target contractor must be one of the selected contractors.")
+                    else:
+                        # Map names to ids
+                        engine = get_sqlalchemy_engine()
+                        with engine.begin() as conn:
+                            rows = conn.execute(text("SELECT id, name FROM contractors WHERE name IN :names"), {"names": tuple(to_merge)}).fetchall()
+                        name_to_id = {r[1]: r[0] for r in rows}
+                        source_ids = [name_to_id[n] for n in to_merge if n != target]
+                        target_id = name_to_id.get(target)
+
+                        try:
+                            merge_contractors(source_ids, target_id)
+                            st.success(f"✅ Merged {len(source_ids)} contractors into '{target}'")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Merge failed: {e}")
+            except Exception as e:
+                st.error(f"❌ Could not load merge UI: {e}")
+
         st.markdown("---")
 
         # Display contractors
@@ -559,6 +590,52 @@ def delete_contractor(contractor_id, name):
 
     except Exception as e:
         st.error(f"Error deleting contractor: {e}")
+        raise
+
+
+def merge_contractors(source_ids, target_id):
+    """Merge multiple contractors into a single target contractor.
+
+    - Reassigns `users.contractor_id`, `incident_reports.contractor_id`,
+      `idle_reports`, `breaks`, `pickups`, `accidents` to the target_id.
+    - Updates `vehicles.contractor` (string) from source names to target name.
+    - Deletes the source contractor rows.
+    """
+    if not source_ids:
+        raise ValueError("No source contractor IDs provided")
+    engine = get_sqlalchemy_engine()
+    try:
+        with engine.begin() as conn:
+            # Get target name
+            target_row = conn.execute(text("SELECT name FROM contractors WHERE id = :id"), {"id": target_id}).fetchone()
+            if not target_row:
+                raise ValueError("Target contractor not found")
+            target_name = target_row[0]
+
+            # Get source names
+            src_rows = conn.execute(text(f"SELECT id, name FROM contractors WHERE id IN ({', '.join(str(i) for i in source_ids)})"), {}).fetchall()
+            source_names = [r[1] for r in src_rows]
+
+            # Update users and various tables to point to target_id
+            id_list = ",".join(str(i) for i in source_ids)
+
+            conn.execute(text(f"UPDATE users SET contractor_id = :target WHERE contractor_id IN ({id_list})"), {"target": target_id})
+            conn.execute(text(f"UPDATE incident_reports SET contractor_id = :target WHERE contractor_id IN ({id_list})"), {"target": target_id})
+            conn.execute(text(f"UPDATE idle_reports SET contractor_id = :target WHERE contractor_id IN ({id_list})"), {"target": target_id})
+            conn.execute(text(f"UPDATE breaks SET contractor_id = :target WHERE contractor_id IN ({id_list})"), {"target": target_id})
+            conn.execute(text(f"UPDATE pickups SET contractor_id = :target WHERE contractor_id IN ({id_list})"), {"target": target_id})
+            conn.execute(text(f"UPDATE accidents SET contractor_id = :target WHERE contractor_id IN ({id_list})"), {"target": target_id})
+
+            # Update vehicles table which stores contractor as name
+            if source_names:
+                names_list = ",".join(f"'{n}'" for n in source_names)
+                conn.execute(text(f"UPDATE vehicles SET contractor = :target_name WHERE contractor IN ({names_list})"), {"target_name": target_name})
+
+            # Delete source contractor rows
+            conn.execute(text(f"DELETE FROM contractors WHERE id IN ({id_list})"))
+
+    except Exception as e:
+        traceback.print_exc()
         raise
 
 
