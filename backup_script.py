@@ -40,9 +40,26 @@ GOOGLE_DRIVE_FOLDER_ID = None  # Will be set after folder creation
 EMAIL_RECIPIENT = 'hebtron25@gmail.com'
 BACKUP_INTERVAL_HOURS = 21
 
-# Email configuration (you'll need to set these up)
-SMTP_SERVER = 'smtp.gmail.com'
-SMTP_PORT = 587
+# Email configuration - fetched from secrets manager or env vars
+SMTP_CREDENTIALS = None  # Will be loaded on demand
+
+def get_smtp_config():
+    """Fetch SMTP credentials from secrets manager or environment."""
+    from secrets_utils import get_smtp_credentials
+    creds = get_smtp_credentials()
+    if creds:
+        return creds
+    else:
+        # Fallback defaults (should be overridden by environment)
+        return {
+            'smtp_server': os.getenv('SMTP_SERVER', 'smtp.gmail.com'),
+            'smtp_port': int(os.getenv('SMTP_PORT', '587')),
+            'username': os.getenv('SMTP_USERNAME', ''),
+            'password': os.getenv('SMTP_PASSWORD', '')
+        }
+
+SMTP_SERVER = None
+SMTP_PORT = None
 SMTP_USERNAME = 'your-email@gmail.com'  # Replace with your email
 SMTP_PASSWORD = 'your-app-password'  # Replace with app password
 
@@ -187,8 +204,19 @@ def upload_to_google_drive(file_path, service):
 def send_email_notification(subject, body, attachment_paths=None):
     """Send email notification with optional attachments"""
     try:
+        # Get SMTP credentials from secrets manager
+        smtp_config = get_smtp_config()
+        smtp_server = smtp_config.get('smtp_server')
+        smtp_port = smtp_config.get('smtp_port', 587)
+        smtp_username = smtp_config.get('username', '')
+        smtp_password = smtp_config.get('password', '')
+
+        if not smtp_username or not smtp_password:
+            logging.warning("SMTP credentials not configured. Email notification skipped.")
+            return
+
         msg = MIMEMultipart()
-        msg['From'] = SMTP_USERNAME
+        msg['From'] = smtp_username
         msg['To'] = EMAIL_RECIPIENT
         msg['Subject'] = subject
 
@@ -208,9 +236,9 @@ def send_email_notification(subject, body, attachment_paths=None):
                         )
                         msg.attach(part)
 
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+        server = smtplib.SMTP(smtp_server, smtp_port)
         server.starttls()
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.login(smtp_username, smtp_password)
         text = msg.as_string()
         server.sendmail(SMTP_USERNAME, EMAIL_RECIPIENT, text)
         server.quit()

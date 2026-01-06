@@ -277,6 +277,56 @@ def backup_management_page():
 📖 **Full Instructions:** See `GOOGLE_DRIVE_AUTH_SETUP.md` in your project root
                 """)
 
+        # Email/SMTP Setup Status
+        st.subheader("📧 Email (SMTP) Configuration")
+        try:
+            from secrets_utils import has_smtp_credentials
+            smtp_configured = has_smtp_credentials()
+        except Exception:
+            smtp_configured = False
+
+        if smtp_configured:
+            st.success("✅ SMTP credentials are configured (secrets manager or environment)")
+        else:
+            st.warning("⚠️ SMTP credentials not configured")
+            with st.expander("📖 Setup SMTP Credentials", expanded=False):
+                st.markdown("""
+### Setup Options (in order of precedence):
+
+1. **Environment Variables** (most secure for CI/CD):
+   ```bash
+   export SMTP_SERVER="smtp.gmail.com"
+   export SMTP_PORT="587"
+   export SMTP_USERNAME="your-email@gmail.com"
+   export SMTP_PASSWORD="your-app-password"
+   ```
+
+2. **JSON Environment Variable**:
+   ```bash
+   export SMTP_CREDENTIALS_JSON='{"smtp_server":"smtp.gmail.com","smtp_port":587,"username":"your-email@gmail.com","password":"app-password"}'
+   ```
+
+3. **AWS Secrets Manager**:
+   ```bash
+   export SMTP_CREDENTIALS_SECRET_NAME="vts-smtp-config"
+   # Create secret with JSON: {"smtp_server":"...", "smtp_port":587, "username":"...", "password":"..."}
+   ```
+
+4. **Azure Key Vault**:
+   ```bash
+   export AZURE_KEY_VAULT_NAME="your-vault"
+   export SMTP_CREDENTIALS_SECRET_NAME="vts-smtp-config"
+   ```
+
+5. **Local File (development only)**:
+   - Create `.smtp_config` in project root with JSON credentials
+   - ⚠️ Never commit this file to git!
+
+### For Gmail:
+- Use [App Passwords](https://myaccount.google.com/apppasswords) instead of your regular password
+- Enable 2-Factor Authentication first
+                """)
+
         # Backup status
         st.subheader("📊 Backup Status")
 
