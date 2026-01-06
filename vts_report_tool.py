@@ -164,45 +164,64 @@ if not st.session_state["login_state"]:
 
     with col2:
         st.markdown("### 🔑 Login")
-        contractor_options = ["Wizpro", "Paschal", "RE Office", "Avators"]
-        contractor = st.selectbox("Select Contractor", contractor_options)
-
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-
-        if st.button("Login"):
-
-            import bcrypt
-
+        
+        # Fetch all contractors dynamically from the database
+        try:
             engine = get_sqlalchemy_engine()
-            is_sqlite = engine.dialect.name == "sqlite"
-            conn = engine.raw_connection()
-            cur = conn.cursor()
-
-            if is_sqlite:
-                # SQLite uses ?
-                cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = ? AND u.username = ?",
-                            (contractor, username))
+            with engine.begin() as conn:
+                contractors_result = pd.read_sql_query(
+                    text("SELECT id, name FROM contractors ORDER BY name"),
+                    engine
+                )
+            
+            if contractors_result.empty:
+                st.error("❌ No contractors available. Please contact administrator.")
+                contractor_options = []
             else:
-                # PostgreSQL uses %s
-                cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = %s AND u.username = %s",
-                            (contractor, username))
-            user = cur.fetchone()
+                contractor_options = contractors_result['name'].tolist()
+        except Exception as e:
+            st.error(f"❌ Error loading contractors: {e}")
+            contractor_options = ["Wizpro", "Paschal", "RE Office", "Avators"]  # Fallback
 
-            cur.close()
-            conn.close()
+        if contractor_options:
+            contractor = st.selectbox("Select Contractor", contractor_options)
 
-            if user and bcrypt.checkpw(password.encode('utf-8'), user[1].encode('utf-8')):
-                st.session_state["login_state"] = True
-                st.session_state["user_name"] = username
-                role = "re_admin" if contractor == "RE Office" else user[2]
-                st.session_state["role"] = role
-                st.session_state["contractor"] = contractor
-                st.session_state["contractor_id"] = get_contractor_id(contractor)
-                st.success(f"✅ Logged in as {username} ({role})")
-                st.rerun()
-            else:
-                st.error("❌ Invalid login credentials")
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+
+            if st.button("Login"):
+
+                import bcrypt
+
+                engine = get_sqlalchemy_engine()
+                is_sqlite = engine.dialect.name == "sqlite"
+                conn = engine.raw_connection()
+                cur = conn.cursor()
+
+                if is_sqlite:
+                    # SQLite uses ?
+                    cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = ? AND u.username = ?",
+                                (contractor, username))
+                else:
+                    # PostgreSQL uses %s
+                    cur.execute("SELECT u.id, u.password_hash, u.role FROM users u JOIN contractors c ON u.contractor_id = c.id WHERE c.name = %s AND u.username = %s",
+                                (contractor, username))
+                user = cur.fetchone()
+
+                cur.close()
+                conn.close()
+
+                if user and bcrypt.checkpw(password.encode('utf-8'), user[1].encode('utf-8')):
+                    st.session_state["login_state"] = True
+                    st.session_state["user_name"] = username
+                    role = "re_admin" if contractor == "RE Office" else user[2]
+                    st.session_state["role"] = role
+                    st.session_state["contractor"] = contractor
+                    st.session_state["contractor_id"] = get_contractor_id(contractor)
+                    st.success(f"✅ Logged in as {username} ({role})")
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid login credentials")
 
     current_year = datetime.datetime.now().year
     st.markdown(f"""
