@@ -362,11 +362,23 @@ def contractor_management_section():
             with st.form("add_contractor_form"):
                 new_contractor_name = st.text_input("Contractor Name*")
                 
+                create_login = st.checkbox("Also create contractor login/account", value=False)
+                new_contractor_username = None
+                new_contractor_password = None
+                if create_login:
+                    new_contractor_username = st.text_input("Login Username (for contractor)")
+                    new_contractor_password = st.text_input("Login Password", type="password")
+
                 if st.form_submit_button("➕ Add Contractor"):
                     if not new_contractor_name:
                         st.error("Contractor name is required!")
                     else:
-                        add_new_contractor(new_contractor_name)
+                        try:
+                            add_new_contractor(new_contractor_name, create_user=create_login,
+                                               username=new_contractor_username, password=new_contractor_password)
+                            st.success(f"✅ Contractor '{new_contractor_name}' added successfully!")
+                        except Exception as e:
+                            st.error(f"Error adding contractor: {e}")
                         st.rerun()
 
         st.markdown("---")
@@ -393,28 +405,51 @@ def contractor_management_section():
                         created_date = 'N/A'
                     st.write(created_date)
                 with col6:
-                    # Only allow deletion if no users/vehicles/reports
-                    can_delete = contractor['user_count'] == 0 and contractor['vehicle_count'] == 0 and contractor['report_count'] == 0
-                    
-                    if can_delete:
+                    col_edit, col_delete = st.columns(2)
+                    with col_edit:
+                        if st.button("✏️", key=f"edit_contractor_{contractor['id']}"):
+                            st.session_state[f"editing_contractor_{contractor['id']}"] = True
+                    with col_delete:
                         if st.button("🗑️", key=f"delete_contractor_{contractor['id']}", help="Delete contractor"):
                             st.session_state[f"confirm_delete_contractor_{contractor['id']}"] = True
-                    else:
-                        st.write("🔒")
 
                 # Delete confirmation
                 if st.session_state.get(f"confirm_delete_contractor_{contractor['id']}", False):
-                    st.warning(f"⚠️ Are you sure you want to delete contractor **{contractor['name']}**?")
+                    st.warning(f"⚠️ Are you sure you want to delete contractor **{contractor['name']}**? This will remove the contractor and associated links.")
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button("✅ Yes, Delete", key=f"confirm_yes_contractor_{contractor['id']}"):
-                            delete_contractor(contractor['id'], contractor['name'])
+                            try:
+                                delete_contractor(contractor['id'], contractor['name'])
+                                st.success(f"✅ Contractor '{contractor['name']}' deleted")
+                            except Exception as e:
+                                st.error(f"Error deleting contractor: {e}")
                             st.session_state[f"confirm_delete_contractor_{contractor['id']}"] = False
                             st.rerun()
                     with col2:
                         if st.button("❌ Cancel", key=f"confirm_no_contractor_{contractor['id']}"):
                             st.session_state[f"confirm_delete_contractor_{contractor['id']}"] = False
                             st.rerun()
+
+                # Edit form for contractor
+                if st.session_state.get(f"editing_contractor_{contractor['id']}", False):
+                    with st.form(key=f"edit_contractor_form_{contractor['id']}"):
+                        st.write(f"**Editing contractor: {contractor['name']}**")
+                        new_name = st.text_input("Contractor Name", value=contractor['name'])
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.form_submit_button("💾 Save Changes"):
+                                try:
+                                    update_contractor(contractor['id'], new_name)
+                                    st.success("✅ Contractor updated successfully!")
+                                except Exception as e:
+                                    st.error(f"Error updating contractor: {e}")
+                                st.session_state[f"editing_contractor_{contractor['id']}"] = False
+                                st.rerun()
+                        with col2:
+                            if st.form_submit_button("❌ Cancel"):
+                                st.session_state[f"editing_contractor_{contractor['id']}"] = False
+                                st.rerun()
 
                 st.markdown("---")
 
@@ -424,21 +459,63 @@ def contractor_management_section():
             st.code(traceback.format_exc())
 
 
-def add_new_contractor(name):
-    """Add a new contractor to the database"""
+def add_new_contractor(name, create_user: bool = False, username: str = None, password: str = None):
+    """Add a new contractor to the database.
+
+    If `create_user` is True and `username`/`password` are provided,
+    create a contractor `contractor`-role user tied to the new contractor.
+    Returns the contractor id (if available).
+    """
+    contractor_id = None
     try:
         engine = get_sqlalchemy_engine()
-        
+
         with engine.begin() as conn:
             if _is_sqlite():
                 conn.execute(text("INSERT INTO contractors (name) VALUES (:name)"), {"name": name})
+                contractor_id = conn.execute(text("SELECT last_insert_rowid()")).fetchone()[0]
             else:
-                conn.execute(text("INSERT INTO contractors (name) VALUES (:name) ON CONFLICT DO NOTHING"), {"name": name})
-        
+                # Try to insert and return id; if already exists, select id
+                try:
+                    result = conn.execute(text("INSERT INTO contractors (name) VALUES (:name) ON CONFLICT (name) DO NOTHING RETURNING id"), {"name": name})
+                    row = result.fetchone()
+                    if row:
+                        contractor_id = row[0]
+                    else:
+                        existing = conn.execute(text("SELECT id FROM contractors WHERE name=:name"), {"name": name}).fetchone()
+                        contractor_id = existing[0] if existing else None
+                except Exception:
+                    existing = conn.execute(text("SELECT id FROM contractors WHERE name=:name"), {"name": name}).fetchone()
+                    contractor_id = existing[0] if existing else None
+
+        # Optionally create a login for the contractor
+        if create_user and username and password and contractor_id:
+            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            with engine.begin() as conn:
+                if _is_sqlite():
+                    conn.execute(text("INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id)"),
+                                 {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
+                else:
+                    conn.execute(text("INSERT INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id) ON CONFLICT (username) DO NOTHING"),
+                                 {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
+
         st.success(f"✅ Contractor '{name}' added successfully!")
-        
+        return contractor_id
+
     except Exception as e:
         st.error(f"Error adding contractor: {e}")
+        raise
+
+
+def update_contractor(contractor_id, new_name):
+    """Update contractor name"""
+    try:
+        engine = get_sqlalchemy_engine()
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE contractors SET name = :name WHERE id = :id"), {"name": new_name, "id": contractor_id})
+        st.success("✅ Contractor updated successfully!")
+    except Exception as e:
+        st.error(f"Error updating contractor: {e}")
         raise
 
 
