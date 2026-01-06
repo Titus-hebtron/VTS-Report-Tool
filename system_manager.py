@@ -523,6 +523,7 @@ def patrol_car_management_section():
 
         # Display vehicles - treat contractor vehicles as patrol cars (show all filtered vehicles)
         patrol_filtered_df = filtered_df.copy()
+        # NOTE: contractor-owned vehicles are displayed here and treated as patrol cars
         st.subheader(f"🚗 Patrol Cars ({len(patrol_filtered_df)})")
 
         if len(patrol_filtered_df) > 0:
