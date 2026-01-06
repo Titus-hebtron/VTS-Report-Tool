@@ -46,6 +46,13 @@ The patrol cars being monitored through GPRS are the five vehicles from the two 
 - RE Office
 - Avators
 
+### Contractor Management (RE Admin Only)
+Resident Engineers can manage contractors in the **System Manager** interface:
+- **Add Contractors**: Create new contractors with optional automatic login account generation
+- **Edit Contractors**: Update contractor names
+- **Delete Contractors**: Remove contractors from the system
+- **Auto-login Creation**: When adding a contractor, optionally create a contractor-role login account simultaneously
+
 ---
 
 ## Technology Stack
@@ -90,6 +97,7 @@ The application uses a PostgreSQL database with the following main tables:
 - `report_search.py`: Report search functionality
 - `search_page.py`: General search interface
 - `accident_analysis.py`: Accident data analysis
+- `system_manager.py`: System administration (contractor & user management, patrol car management, backups)
 
 ### Utilities
 - `db_utils.py`: Database connection and utility functions
@@ -148,6 +156,18 @@ streamlit run vts_report_tool.py
 ```bash
 streamlit run app.py
 ```
+
+### Contractor Seeding with Logins
+To seed contractors and automatically create contractor-role login accounts:
+
+```bash
+python insert_contractors.py --create-logins
+```
+
+This will create:
+- Contractor records in the database
+- Contractor-role user accounts with default password `Pass@12345`
+- Default username format: `contractor_<contractor_name_lowercase>`
 
 The application will be available at `http://localhost:8501`
 
