@@ -69,9 +69,26 @@ def get_google_drive_service():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # For server-side authentication, you'll need to set up OAuth2
-            # This requires credentials.json from Google Cloud Console
-            raise Exception("Google Drive authentication not set up. Please configure OAuth2 credentials.")
+            # Try to obtain client info from secrets manager or env
+            from secrets_utils import get_google_credentials_json
+            client_info = get_google_credentials_json()
+
+            # Prefer service account key if provided
+            if client_info and isinstance(client_info, dict) and 'type' in client_info and client_info.get('type') == 'service_account':
+                from google.oauth2 import service_account
+                creds = service_account.Credentials.from_service_account_info(client_info, scopes=SCOPES)
+            elif client_info and isinstance(client_info, dict):
+                # Perform interactive OAuth flow (saves token.pickle)
+                try:
+                    from google_auth_oauthlib.flow import InstalledAppFlow
+                    flow = InstalledAppFlow.from_client_config(client_info, SCOPES)
+                    creds = flow.run_local_server(port=0)
+                    with open(token_path, 'wb') as token:
+                        pickle.dump(creds, token)
+                except Exception:
+                    raise Exception("Could not perform OAuth flow. Ensure environment allows opening a browser, or provide a service account key via secrets manager.")
+            else:
+                raise Exception("Google Drive authentication not set up. Provide credentials via environment, AWS Secrets Manager, or Azure Key Vault.")
 
         with open(token_path, 'wb') as token:
             pickle.dump(creds, token)

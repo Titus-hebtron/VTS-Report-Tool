@@ -225,7 +225,12 @@ def backup_management_page():
         st.subheader("🔐 Google Drive Authentication")
         
         token_exists = os.path.exists('token.pickle')
-        credentials_exists = os.path.exists('credentials.json')
+        # credentials may be provided via secrets manager or env; check via helper
+        try:
+            from secrets_utils import has_google_credentials
+            credentials_exists = has_google_credentials()
+        except Exception:
+            credentials_exists = os.path.exists('credentials.json')
         
         if token_exists:
             st.success("✅ Google Drive is authenticated and ready for backups")
@@ -235,7 +240,7 @@ def backup_management_page():
                 st.info("Token cleared. The next backup attempt will trigger new authentication.")
                 st.rerun()
         elif credentials_exists:
-            st.info("📄 `credentials.json` found. Use the backup button to authenticate for the first time.")
+            st.info("📄 Google credentials available (local file or secrets manager). Use the backup button to authenticate if required.")
         else:
             st.warning("⚠️ Google Drive credentials not configured")
             with st.expander("📖 Setup Google Drive Authentication", expanded=False):
