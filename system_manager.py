@@ -488,16 +488,20 @@ def add_new_contractor(name, create_user: bool = False, username: str = None, pa
                     existing = conn.execute(text("SELECT id FROM contractors WHERE name=:name"), {"name": name}).fetchone()
                     contractor_id = existing[0] if existing else None
 
-        # Optionally create a login for the contractor
+        # Optionally create a login for the contractor using the shared helper
         if create_user and username and password and contractor_id:
-            password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-            with engine.begin() as conn:
-                if _is_sqlite():
-                    conn.execute(text("INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id)"),
-                                 {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
-                else:
-                    conn.execute(text("INSERT INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id) ON CONFLICT (username) DO NOTHING"),
-                                 {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
+            try:
+                add_new_user(username, password, 'contractor', contractor_id)
+            except Exception:
+                # If add_new_user fails for any reason, fall back to direct insert
+                password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+                with engine.begin() as conn:
+                    if _is_sqlite():
+                        conn.execute(text("INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id)"),
+                                     {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
+                    else:
+                        conn.execute(text("INSERT INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id) ON CONFLICT (username) DO NOTHING"),
+                                     {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
 
         st.success(f"✅ Contractor '{name}' added successfully!")
         return contractor_id
