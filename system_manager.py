@@ -371,15 +371,22 @@ def contractor_management_section():
 
                 if st.form_submit_button("➕ Add Contractor"):
                     if not new_contractor_name:
-                        st.error("Contractor name is required!")
+                        st.error("❌ Contractor name is required!")
+                    elif create_login and (not new_contractor_username or not new_contractor_password):
+                        st.error("❌ Please provide both username and password for the contractor login!")
                     else:
                         try:
-                            add_new_contractor(new_contractor_name, create_user=create_login,
-                                               username=new_contractor_username, password=new_contractor_password)
-                            st.success(f"✅ Contractor '{new_contractor_name}' added successfully!")
+                            contractor_id = add_new_contractor(new_contractor_name, create_user=create_login,
+                                                               username=new_contractor_username, password=new_contractor_password)
+                            if contractor_id:
+                                st.success(f"✅ Contractor '{new_contractor_name}' added successfully!")
+                                if create_login:
+                                    st.info(f"✅ Contractor login created with username: **{new_contractor_username}**")
+                                st.rerun()
+                            else:
+                                st.error("❌ Failed to add contractor: Could not retrieve contractor ID")
                         except Exception as e:
-                            st.error(f"Error adding contractor: {e}")
-                        st.rerun()
+                            st.error(f"❌ Error adding contractor: {str(e)}")
 
         st.markdown("---")
 
@@ -467,47 +474,64 @@ def add_new_contractor(name, create_user: bool = False, username: str = None, pa
     Returns the contractor id (if available).
     """
     contractor_id = None
-    try:
-        engine = get_sqlalchemy_engine()
+    engine = get_sqlalchemy_engine()
 
+    try:
+        # Insert the contractor
         with engine.begin() as conn:
             if _is_sqlite():
                 conn.execute(text("INSERT INTO contractors (name) VALUES (:name)"), {"name": name})
-                contractor_id = conn.execute(text("SELECT last_insert_rowid()")).fetchone()[0]
+                result = conn.execute(text("SELECT last_insert_rowid()")).fetchone()
+                contractor_id = result[0] if result else None
             else:
-                # Try to insert and return id; if already exists, select id
-                try:
-                    result = conn.execute(text("INSERT INTO contractors (name) VALUES (:name) ON CONFLICT (name) DO NOTHING RETURNING id"), {"name": name})
-                    row = result.fetchone()
-                    if row:
-                        contractor_id = row[0]
-                    else:
-                        existing = conn.execute(text("SELECT id FROM contractors WHERE name=:name"), {"name": name}).fetchone()
-                        contractor_id = existing[0] if existing else None
-                except Exception:
-                    existing = conn.execute(text("SELECT id FROM contractors WHERE name=:name"), {"name": name}).fetchone()
-                    contractor_id = existing[0] if existing else None
+                # PostgreSQL: Insert with RETURNING clause
+                result = conn.execute(
+                    text("INSERT INTO contractors (name) VALUES (:name) RETURNING id"),
+                    {"name": name}
+                ).fetchone()
+                contractor_id = result[0] if result else None
 
-        # Optionally create a login for the contractor using the shared helper
-        if create_user and username and password and contractor_id:
+        if not contractor_id:
+            raise ValueError(f"Failed to create contractor: could not retrieve ID")
+
+        # Optionally create a login for the contractor
+        if create_user and username and password:
             try:
-                add_new_user(username, password, 'contractor', contractor_id)
-            except Exception:
-                # If add_new_user fails for any reason, fall back to direct insert
                 password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
                 with engine.begin() as conn:
                     if _is_sqlite():
-                        conn.execute(text("INSERT OR IGNORE INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id)"),
-                                     {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
+                        conn.execute(
+                            text("""INSERT OR IGNORE INTO users 
+                                   (username, password_hash, role, contractor_id) 
+                                   VALUES (:username, :password_hash, :role, :contractor_id)"""),
+                            {
+                                "username": username,
+                                "password_hash": password_hash,
+                                "role": "contractor",
+                                "contractor_id": contractor_id
+                            }
+                        )
                     else:
-                        conn.execute(text("INSERT INTO users (username, password_hash, role, contractor_id) VALUES (:username, :password_hash, :role, :contractor_id) ON CONFLICT (username) DO NOTHING"),
-                                     {"username": username, "password_hash": password_hash, "role": "contractor", "contractor_id": contractor_id})
+                        conn.execute(
+                            text("""INSERT INTO users 
+                                   (username, password_hash, role, contractor_id) 
+                                   VALUES (:username, :password_hash, :role, :contractor_id)
+                                   ON CONFLICT (username) DO NOTHING"""),
+                            {
+                                "username": username,
+                                "password_hash": password_hash,
+                                "role": "contractor",
+                                "contractor_id": contractor_id
+                            }
+                        )
+            except Exception as e:
+                raise ValueError(f"Failed to create user account for contractor: {e}")
 
-        st.success(f"✅ Contractor '{name}' added successfully!")
         return contractor_id
 
     except Exception as e:
-        st.error(f"Error adding contractor: {e}")
+        st.error(f"❌ Error adding contractor: {str(e)}")
+        traceback.print_exc()
         raise
 
 
