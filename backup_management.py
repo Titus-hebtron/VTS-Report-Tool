@@ -535,37 +535,60 @@ def backup_management_page():
                             st.info(f"✅ Images backup created: {img_backup}")
                             images_backup = img_path
 
-                        # Google Drive authentication
-                        creds = None
-                        token_path = 'token.pickle'
+                       # Google Drive authentication
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+import json
 
-                        if os.path.exists(token_path):
-                            with open(token_path, 'rb') as token:
-                                creds = pickle.load(token)
+creds = None
 
-                        if not creds or not creds.valid:
-                            if creds and creds.expired and creds.refresh_token:
-                                creds.refresh(Request())
-                            else:
-                                st.error("❌ Google Drive authentication not configured")
-                                st.warning("""
+try:
+    # ✅ OPTION 1: Service Account (Render / Production)
+    if os.getenv("GOOGLE_CREDENTIALS_JSON"):
+        service_account_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
+        creds = Credentials.from_service_account_info(
+            service_account_info,
+            scopes=["https://www.googleapis.com/auth/drive"]
+        )
+
+    # ✅ OPTION 2: Local OAuth (Development)
+    else:
+        token_path = "token.pickle"
+
+        if os.path.exists(token_path):
+            with open(token_path, "rb") as token:
+                creds = pickle.load(token)
+
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                st.error("❌ Google Drive authentication not configured")
+                st.warning("""
 ### Setup Required: Google Drive Authentication
 
-Your VTS project **vts-backup-tool** needs Google Drive credentials.
+**For Render (Production):**
+✔ Use a **Service Account**
+✔ Set `GOOGLE_CREDENTIALS_JSON` environment variable
 
-**Quick Setup:**
-1. Open: https://console.cloud.google.com/apis/credentials
-2. Select project **vts-backup-tool** (Project ID: vts-backup-tool)
-3. Create **OAuth 2.0 Desktop credentials**
-4. Download the JSON file and save as `credentials.json` in this directory
+**For Local Development:**
+1. Create OAuth Desktop credentials
+2. Save as `credentials.json`
+3. Run once to generate `token.pickle`
 
-**Full Instructions:**
-📖 See `GOOGLE_DRIVE_AUTH_SETUP.md` in your project root for detailed steps
+📖 See `GOOGLE_DRIVE_AUTH_SETUP.md` for full instructions
+                """)
+                raise Exception("Google Drive not authenticated.")
 
-**Meantime:**
-✅ Use **"Run Local Backup Only"** above - backups are stored locally and you can download them anytime
-                                """)
-                                raise Exception("Google Drive not authenticated. Please see GOOGLE_DRIVE_AUTH_SETUP.md for instructions.")
+    # ✅ Final validation
+    if not creds:
+        raise Exception("Google Drive credentials could not be loaded.")
+
+    drive_service = build("drive", "v3", credentials=creds)
+
+except Exception as e:
+    st.error(f"❌ Google Drive authentication failed: {e}")
+    raise
 
                         service = build('drive', 'v3', credentials=creds)
 
