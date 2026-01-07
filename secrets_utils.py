@@ -14,14 +14,24 @@ def _from_env(var_name: str):
 
 def get_google_credentials_json():
     """Return Google credentials JSON (dict) from one of these sources, in order:
-    1. `GOOGLE_CREDENTIALS_JSON` env var (JSON string)
-    2. AWS Secrets Manager secret named by `GOOGLE_CREDENTIALS_SECRET_NAME`
-    3. Azure Key Vault secret named by `GOOGLE_CREDENTIALS_SECRET_NAME` in vault `AZURE_KEY_VAULT_NAME`
-    4. Local file `credentials.json` in project root
+    1. `GOOGLE_APPLICATION_CREDENTIALS` env var pointing to JSON file path (Render Secret Files)
+    2. `GOOGLE_CREDENTIALS_JSON` env var (JSON string)
+    3. AWS Secrets Manager secret named by `GOOGLE_CREDENTIALS_SECRET_NAME`
+    4. Azure Key Vault secret named by `GOOGLE_CREDENTIALS_SECRET_NAME` in vault `AZURE_KEY_VAULT_NAME`
+    5. Local file `credentials.json` in project root
 
     Returns dict or None.
     """
-    # 1) Env var
+    # 1) GOOGLE_APPLICATION_CREDENTIALS (file path - standard Google Cloud approach)
+    try:
+        creds_file_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        if creds_file_path and os.path.exists(creds_file_path):
+            with open(creds_file_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception:
+        traceback.print_exc()
+    
+    # 2) GOOGLE_CREDENTIALS_JSON env var (inline JSON)
     try:
         env_val = _from_env('GOOGLE_CREDENTIALS_JSON')
         if env_val:

@@ -481,10 +481,20 @@ def backup_management_page():
                         IMAGES_DIR = 'uploaded_accident_images'
                         BACKUP_DIR = 'backups'
                         EMAIL_RECIPIENT = 'hebtron25@gmail.com'
-                        SMTP_SERVER = 'smtp.gmail.com'
-                        SMTP_PORT = 587
-                        SMTP_USERNAME = 'your-email@gmail.com'  # Replace with your email
-                        SMTP_PASSWORD = 'your-app-password'  # Replace with app password
+                        
+                        # Get SMTP credentials from secrets manager
+                        try:
+                            from secrets_utils import get_smtp_credentials
+                            smtp_config = get_smtp_credentials() or {}
+                            SMTP_SERVER = smtp_config.get('smtp_server', 'smtp.gmail.com')
+                            SMTP_PORT = smtp_config.get('smtp_port', 587)
+                            SMTP_USERNAME = smtp_config.get('username', '')
+                            SMTP_PASSWORD = smtp_config.get('password', '')
+                        except Exception:
+                            SMTP_SERVER = 'smtp.gmail.com'
+                            SMTP_PORT = 587
+                            SMTP_USERNAME = ''
+                            SMTP_PASSWORD = ''
 
                         # Create backups directory
                         os.makedirs(BACKUP_DIR, exist_ok=True)

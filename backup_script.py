@@ -3,6 +3,11 @@
 Automated Database and Image Backup to Google Drive
 Backs up SQLite database and uploaded images every 21 hours
 Sends email notifications to hebtron25@gmail.com
+
+PRODUCTION READY:
+- Service Account authentication for Render
+- OAuth fallback for local development
+- Secrets manager integration
 """
 
 import os
@@ -20,17 +25,20 @@ import logging
 from pathlib import Path
 import zipfile
 import tempfile
+import json
 
 # Google Drive API imports
 try:
     from google.oauth2.credentials import Credentials
+    from google.oauth2.service_account import Credentials as ServiceAccountCredentials
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
     from google.auth.transport.requests import Request
     import pickle
+    GOOGLE_API_AVAILABLE = True
 except ImportError:
     print("Google API libraries not installed. Install with: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
-    exit(1)
+    GOOGLE_API_AVAILABLE = False
 
 # Configuration
 DB_PATH = 'vts_database.db'
@@ -40,31 +48,8 @@ GOOGLE_DRIVE_FOLDER_ID = None  # Will be set after folder creation
 EMAIL_RECIPIENT = 'hebtron25@gmail.com'
 BACKUP_INTERVAL_HOURS = 21
 
-# Email configuration - fetched from secrets manager or env vars
-SMTP_CREDENTIALS = None  # Will be loaded on demand
-
-def get_smtp_config():
-    """Fetch SMTP credentials from secrets manager or environment."""
-    from secrets_utils import get_smtp_credentials
-    creds = get_smtp_credentials()
-    if creds:
-        return creds
-    else:
-        # Fallback defaults (should be overridden by environment)
-        return {
-            'smtp_server': os.getenv('SMTP_SERVER', 'smtp.gmail.com'),
-            'smtp_port': int(os.getenv('SMTP_PORT', '587')),
-            'username': os.getenv('SMTP_USERNAME', ''),
-            'password': os.getenv('SMTP_PASSWORD', '')
-        }
-
-SMTP_SERVER = None
-SMTP_PORT = None
-SMTP_USERNAME = 'your-email@gmail.com'  # Replace with your email
-SMTP_PASSWORD = 'your-app-password'  # Replace with app password
-
-# Google Drive API scopes
-SCOPES = ['https://www.googleapis.com/auth/drive.file']
+# Google Drive API scopes - FULL DRIVE ACCESS for Service Account
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 # Setup logging
 logging.basicConfig(
@@ -73,44 +58,113 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+def get_smtp_config():
+    """Fetch SMTP credentials from secrets manager or environment."""
+    try:
+        from secrets_utils import get_smtp_credentials
+        creds = get_smtp_credentials()
+        if creds:
+            return creds
+    except Exception as e:
+        logging.warning(f"Could not load SMTP credentials from secrets_utils: {e}")
+    
+    # Fallback to environment variables
+    return {
+        'smtp_server': os.getenv('SMTP_SERVER', 'smtp.gmail.com'),
+        'smtp_port': int(os.getenv('SMTP_PORT', '587')),
+        'username': os.getenv('SMTP_USERNAME', ''),
+        'password': os.getenv('SMTP_PASSWORD', '')
+    }
+
 def get_google_drive_service():
-    """Authenticate and return Google Drive service"""
+    """
+    Authenticate and return Google Drive service.
+    
+    PRODUCTION (Render/Cloud): Uses Service Account via:
+      - GOOGLE_APPLICATION_CREDENTIALS (file path - Render Secret Files)
+      - GOOGLE_CREDENTIALS_JSON (inline JSON string)
+    LOCAL DEVELOPMENT: Uses OAuth with token.pickle file
+    """
+    if not GOOGLE_API_AVAILABLE:
+        raise Exception("Google API libraries not installed")
+    
     creds = None
+    
+    # ✅ PRIORITY 1: Service Account (Production - Render)
+    try:
+        from secrets_utils import get_google_credentials_json
+        credentials_json = get_google_credentials_json()
+        
+        if credentials_json and isinstance(credentials_json, dict):
+            # Check if it's a service account key
+            if credentials_json.get('type') == 'service_account':
+                logging.info("Using Service Account authentication")
+                creds = ServiceAccountCredentials.from_service_account_info(
+                    credentials_json,
+                    scopes=SCOPES
+                )
+                logging.info("✅ Service Account authentication successful")
+                return build('drive', 'v3', credentials=creds)
+    except Exception as e:
+        logging.warning(f"Service Account authentication failed: {e}")
+    
+    # ✅ PRIORITY 2: OAuth (Local Development)
     token_path = 'token.pickle'
-
+    
     if os.path.exists(token_path):
-        with open(token_path, 'rb') as token:
-            creds = pickle.load(token)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
+        try:
+            with open(token_path, 'rb') as token:
+                creds = pickle.load(token)
+            logging.info("Loaded OAuth credentials from token.pickle")
+        except Exception as e:
+            logging.warning(f"Could not load token.pickle: {e}")
+            creds = None
+    
+    # Refresh or authenticate
+    if creds and creds.valid:
+        logging.info("✅ OAuth credentials are valid")
+        return build('drive', 'v3', credentials=creds)
+    
+    if creds and creds.expired and hasattr(creds, 'refresh_token') and creds.refresh_token:
+        try:
+            logging.info("Refreshing expired OAuth token...")
             creds.refresh(Request())
-        else:
-            # Try to obtain client info from secrets manager or env
-            from secrets_utils import get_google_credentials_json
-            client_info = get_google_credentials_json()
-
-            # Prefer service account key if provided
-            if client_info and isinstance(client_info, dict) and 'type' in client_info and client_info.get('type') == 'service_account':
-                from google.oauth2 import service_account
-                creds = service_account.Credentials.from_service_account_info(client_info, scopes=SCOPES)
-            elif client_info and isinstance(client_info, dict):
-                # Perform interactive OAuth flow (saves token.pickle)
-                try:
-                    from google_auth_oauthlib.flow import InstalledAppFlow
-                    flow = InstalledAppFlow.from_client_config(client_info, SCOPES)
-                    creds = flow.run_local_server(port=0)
-                    with open(token_path, 'wb') as token:
-                        pickle.dump(creds, token)
-                except Exception:
-                    raise Exception("Could not perform OAuth flow. Ensure environment allows opening a browser, or provide a service account key via secrets manager.")
-            else:
-                raise Exception("Google Drive authentication not set up. Provide credentials via environment, AWS Secrets Manager, or Azure Key Vault.")
-
-        with open(token_path, 'wb') as token:
-            pickle.dump(creds, token)
-
-    return build('drive', 'v3', credentials=creds)
+            with open(token_path, 'wb') as token:
+                pickle.dump(creds, token)
+            logging.info("✅ OAuth token refreshed")
+            return build('drive', 'v3', credentials=creds)
+        except Exception as e:
+            logging.error(f"Failed to refresh OAuth token: {e}")
+    
+    # Try to get credentials and perform OAuth flow (local development only)
+    try:
+        from secrets_utils import get_google_credentials_json
+        from google_auth_oauthlib.flow import InstalledAppFlow
+        
+        credentials_json = get_google_credentials_json()
+        
+        if credentials_json and isinstance(credentials_json, dict):
+            # OAuth client configuration
+            if 'installed' in credentials_json or 'web' in credentials_json:
+                logging.info("Attempting OAuth flow (requires browser)...")
+                flow = InstalledAppFlow.from_client_config(credentials_json, SCOPES)
+                creds = flow.run_local_server(port=0)
+                
+                # Save credentials
+                with open(token_path, 'wb') as token:
+                    pickle.dump(creds, token)
+                
+                logging.info("✅ OAuth authentication successful")
+                return build('drive', 'v3', credentials=creds)
+    except Exception as e:
+        logging.error(f"OAuth flow failed: {e}")
+    
+    # If we get here, authentication failed
+    raise Exception(
+        "Google Drive authentication failed. "
+        "For Render: Set GOOGLE_CREDENTIALS_JSON with Service Account key. "
+        "For local: Run backup_management.py to authenticate via browser."
+    )
 
 def create_backup_folder(service):
     """Create or get backup folder in Google Drive"""
@@ -126,6 +180,7 @@ def create_backup_folder(service):
 
     if items:
         GOOGLE_DRIVE_FOLDER_ID = items[0]['id']
+        logging.info(f"Found existing backup folder: {GOOGLE_DRIVE_FOLDER_ID}")
         return GOOGLE_DRIVE_FOLDER_ID
 
     # Create new folder
@@ -136,6 +191,7 @@ def create_backup_folder(service):
 
     folder = service.files().create(body=folder_metadata, fields='id').execute()
     GOOGLE_DRIVE_FOLDER_ID = folder.get('id')
+    logging.info(f"Created new backup folder: {GOOGLE_DRIVE_FOLDER_ID}")
     return GOOGLE_DRIVE_FOLDER_ID
 
 def create_database_backup():
@@ -240,7 +296,7 @@ def send_email_notification(subject, body, attachment_paths=None):
         server.starttls()
         server.login(smtp_username, smtp_password)
         text = msg.as_string()
-        server.sendmail(SMTP_USERNAME, EMAIL_RECIPIENT, text)
+        server.sendmail(smtp_username, EMAIL_RECIPIENT, text)
         server.quit()
 
         logging.info(f"Email notification sent to {EMAIL_RECIPIENT}")
@@ -319,62 +375,59 @@ def cleanup_old_backups():
         logging.warning(f"Failed to cleanup old backups: {e}")
 
 def setup_google_drive_auth():
-    """Setup Google Drive authentication (run this once manually)"""
+    """Setup Google Drive authentication (run this once manually for local dev)"""
     print("Setting up Google Drive authentication...")
-    print("Checking for credentials.json...")
-
+    print("=" * 50)
+    
+    # Check for Service Account (Production)
+    try:
+        from secrets_utils import get_google_credentials_json
+        creds_json = get_google_credentials_json()
+        
+        if creds_json and creds_json.get('type') == 'service_account':
+            print("✅ Service Account detected!")
+            print(f"   Service Account Email: {creds_json.get('client_email')}")
+            print("\n🔔 IMPORTANT: Share your Google Drive 'VTS_Backups' folder with:")
+            print(f"   {creds_json.get('client_email')}")
+            print("   (Give Editor access)")
+            
+            # Test authentication
+            try:
+                service = get_google_drive_service()
+                print("\n✅ Service Account authentication successful!")
+                print("   You can now run backups that will upload to Google Drive.")
+                return
+            except Exception as e:
+                print(f"\n❌ Service Account test failed: {e}")
+                return
+    except Exception as e:
+        print(f"⚠️  Could not check Service Account: {e}")
+    
+    # OAuth setup (Local Development)
+    print("\n📋 For LOCAL DEVELOPMENT:")
+    print("1. Get credentials.json from Google Cloud Console")
+    print("2. Place it in project root")
+    print("3. Run backup to trigger OAuth browser authentication")
+    
     if os.path.exists('credentials.json'):
-        print("✅ credentials.json found!")
-        print("Attempting to authenticate with Google Drive...")
+        print("\n✅ credentials.json found!")
+        print("Attempting OAuth authentication...")
 
         try:
-            from google.oauth2.credentials import Credentials
-            from googleapiclient.discovery import build
-            from google.auth.transport.requests import Request
-            import pickle
-
-            creds = None
-            token_path = 'token.pickle'
-
-            if os.path.exists(token_path):
-                with open(token_path, 'rb') as token:
-                    creds = pickle.load(token)
-
-            if not creds or not creds.valid:
-                if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
-                else:
-                    # Load credentials from file
-                    from google_auth_oauthlib.flow import InstalledAppFlow
-                    SCOPES = ['https://www.googleapis.com/auth/drive.file']
-                    flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-                    creds = flow.run_local_server(port=0)
-
-                # Save the credentials for the next run
-                with open(token_path, 'wb') as token:
-                    pickle.dump(creds, token)
-
-            # Test the connection
-            service = build('drive', 'v3', credentials=creds)
+            service = get_google_drive_service()
             print("✅ Google Drive authentication successful!")
             print("You can now run backups that will upload to Google Drive.")
 
         except Exception as e:
             print(f"❌ Authentication failed: {e}")
-            print("Please check your credentials.json file and try again.")
-            print("Make sure:")
+            print("\nPlease check:")
             print("- credentials.json is valid")
-            print("- Google Drive API is enabled in your project")
+            print("- Google Drive API is enabled")
             print("- OAuth consent screen is configured")
 
     else:
-        print("❌ credentials.json not found!")
-        print("You'll need to:")
-        print("1. Go to Google Cloud Console (https://console.cloud.google.com/)")
-        print("2. Create a project and enable Google Drive API")
-        print("3. Create OAuth2 credentials (Desktop application)")
-        print("4. Download credentials.json and place it in the project root")
-        print("5. Run this script again to authenticate")
+        print("\n❌ credentials.json not found!")
+        print("See GOOGLE_DRIVE_AUTH_SETUP.md for setup instructions")
 
 def main():
     """Main function to run the backup scheduler"""
@@ -388,23 +441,27 @@ def main():
 
     # Check if required files exist
     if not os.path.exists(DB_PATH):
-        print(f"ERROR: Database file {DB_PATH} not found!")
-        return
+        print(f"WARNING: Database file {DB_PATH} not found!")
+        print("Will attempt backup when database is available.")
 
-    # Setup Google Drive authentication if needed
-    if not os.path.exists('token.pickle'):
-        print("Google Drive authentication not set up.")
-        setup_google_drive_auth()
+    # Check Google Drive authentication
+    try:
+        service = get_google_drive_service()
+        print("✅ Google Drive authenticated")
+    except Exception as e:
+        print(f"⚠️  Google Drive authentication not configured: {e}")
+        print("Run with --setup flag to configure authentication")
         return
 
     # Schedule the backup
     schedule.every(BACKUP_INTERVAL_HOURS).hours.do(perform_backup)
 
-    print(f"Backup scheduler started. Next backup in {BACKUP_INTERVAL_HOURS} hours.")
+    print(f"\n✅ Backup scheduler started")
+    print(f"⏰ Next backup in {BACKUP_INTERVAL_HOURS} hours")
     print("Press Ctrl+C to stop.")
 
     # Run initial backup
-    print("Running initial backup...")
+    print("\n🚀 Running initial backup...")
     perform_backup()
 
     # Keep the script running
@@ -413,7 +470,12 @@ def main():
             schedule.run_pending()
             time.sleep(60)  # Check every minute
     except KeyboardInterrupt:
-        print("\nBackup scheduler stopped.")
+        print("\n\nBackup scheduler stopped.")
 
 if __name__ == "__main__":
-    main()
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == '--setup':
+        setup_google_drive_auth()
+    else:
+        main()
