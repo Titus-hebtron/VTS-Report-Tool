@@ -535,62 +535,45 @@ def backup_management_page():
                             st.info(f"✅ Images backup created: {img_backup}")
                             images_backup = img_path
 
-                       # Google Drive authentication
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-import json
+                                             # Google Drive authentication (Render-safe)
+                        from google.oauth2.service_account import Credentials as SA_Credentials
+                        from googleapiclient.discovery import build
+                        from google.auth.transport.requests import Request
+                        import json
+                        import pickle
 
-creds = None
+                        creds = None
 
-try:
-    # ✅ OPTION 1: Service Account (Render / Production)
-    if os.getenv("GOOGLE_CREDENTIALS_JSON"):
-        service_account_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
-        creds = Credentials.from_service_account_info(
-            service_account_info,
-            scopes=["https://www.googleapis.com/auth/drive"]
-        )
+                        # ✅ PRODUCTION (Render): Service Account
+                        if os.getenv("GOOGLE_CREDENTIALS_JSON"):
+                            service_account_info = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON"))
+                            creds = SA_Credentials.from_service_account_info(
+                                service_account_info,
+                                scopes=["https://www.googleapis.com/auth/drive"]
+                            )
 
-    # ✅ OPTION 2: Local OAuth (Development)
-    else:
-        token_path = "token.pickle"
+                        # ✅ LOCAL DEVELOPMENT: OAuth
+                        else:
+                            token_path = "token.pickle"
 
-        if os.path.exists(token_path):
-            with open(token_path, "rb") as token:
-                creds = pickle.load(token)
+                            if os.path.exists(token_path):
+                                with open(token_path, "rb") as token:
+                                    creds = pickle.load(token)
 
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                st.error("❌ Google Drive authentication not configured")
-                st.warning("""
-### Setup Required: Google Drive Authentication
+                            if not creds or not creds.valid:
+                                if creds and creds.expired and creds.refresh_token:
+                                    creds.refresh(Request())
+                                else:
+                                    raise Exception(
+                                        "Google Drive not authenticated. "
+                                        "Use Service Account on Render or OAuth locally."
+                                    )
 
-**For Render (Production):**
-✔ Use a **Service Account**
-✔ Set `GOOGLE_CREDENTIALS_JSON` environment variable
+                        if not creds:
+                            raise Exception("Failed to load Google Drive credentials")
 
-**For Local Development:**
-1. Create OAuth Desktop credentials
-2. Save as `credentials.json`
-3. Run once to generate `token.pickle`
+                        service = build("drive", "v3", credentials=creds)
 
-📖 See `GOOGLE_DRIVE_AUTH_SETUP.md` for full instructions
-                """)
-                raise Exception("Google Drive not authenticated.")
-
-    # ✅ Final validation
-    if not creds:
-        raise Exception("Google Drive credentials could not be loaded.")
-
-    drive_service = build("drive", "v3", credentials=creds)
-
-except Exception as e:
-    st.error(f"❌ Google Drive authentication failed: {e}")
-    raise
-
-                        service = build('drive', 'v3', credentials=creds)
 
                         # Create or get backup folder
                         query = "name='VTS_Backups' and mimeType='application/vnd.google-apps.folder' and trashed=false"
